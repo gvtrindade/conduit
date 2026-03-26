@@ -2,9 +2,54 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { signUp } from '@/lib/auth-client';
 
 export default function SignupPage() {
+  const router = useRouter();
   const [showPw, setShowPw] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [callsign, setCallsign] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (password !== confirmPassword) {
+      setError('ACCESS KEYS DO NOT MATCH');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('ACCESS KEY MUST BE AT LEAST 8 CHARACTERS');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const { error: signUpError } = await signUp.email({
+        email,
+        password,
+        name: callsign,
+      });
+
+      if (signUpError) {
+        setError((signUpError.message || 'Unknown error').toUpperCase());
+        return;
+      }
+
+      router.push('/login');
+    } catch (err) {
+      setError('TRANSMISSION FAILED - TRY AGAIN');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center min-h-screen px-6 py-12">
@@ -22,30 +67,67 @@ export default function SignupPage() {
         <div className="space-y-3">
           <div>
             <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// CALLSIGN //</label>
-            <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2" placeholder="CAPT_PROVISIONS" />
+            <input
+              value={callsign}
+              onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+              className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
+              placeholder="CAPT_PROVISIONS"
+            />
           </div>
           <div>
             <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// COMM_CHANNEL //</label>
-            <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2" type="email" placeholder="operator@conduit.net" />
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
+              type="email"
+              placeholder="operator@conduit.net"
+            />
           </div>
           <div>
             <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// ACCESS_KEY //</label>
             <div className="relative">
-              <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 pr-16 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2" type={showPw ? 'text' : 'password'} placeholder="••••••••••••" />
-              <button onClick={() => setShowPw(!showPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-sand tracking-wider uppercase cursor-pointer hover:text-cream transition-colors bg-transparent border-none">{showPw ? 'HIDE' : 'SHOW'}</button>
+              <input
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 pr-16 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
+                type={showPw ? 'text' : 'password'}
+                placeholder="••••••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw(!showPw)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-sand tracking-wider uppercase cursor-pointer hover:text-cream transition-colors bg-transparent border-none"
+              >
+                {showPw ? 'HIDE' : 'SHOW'}
+              </button>
             </div>
           </div>
           <div>
             <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// CONFIRM_KEY //</label>
-            <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2" type="password" placeholder="••••••••••••" />
+            <input
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
+              type="password"
+              placeholder="••••••••••••"
+            />
           </div>
         </div>
 
+        {error && (
+          <div className="mt-4 p-3 bg-red-900/50 border border-red-500 rounded-lg">
+            <p className="font-mono text-[11px] text-red-400 text-center uppercase tracking-wider">{error}</p>
+          </div>
+        )}
+
         <button
-          className="w-full bg-blue border-2 border-[#4A7A8D] rounded-xl py-4 font-mono text-[13px] font-bold tracking-[0.14em] uppercase text-cream cursor-pointer mt-5 relative overflow-hidden hover:shadow-[0_0_40px_rgba(91,138,158,0.4)] transition-shadow"
+          onClick={handleSubmit}
+          disabled={loading}
+          className="w-full bg-blue border-2 border-[#4A7A8D] rounded-xl py-4 font-mono text-[13px] font-bold tracking-[0.14em] uppercase text-cream cursor-pointer mt-5 relative overflow-hidden hover:shadow-[0_0_40px_rgba(91,138,158,0.4)] transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.35), 0 0 24px rgba(91,138,158,0.25)' }}
         >
-          [ SUBMIT_CLEARANCE_REQUEST ]
+          {loading ? '[ PROCESSING... ]' : '[ SUBMIT_CLEARANCE_REQUEST ]'}
         </button>
 
         <div className="text-center mt-5">
