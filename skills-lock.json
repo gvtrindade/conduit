@@ -11,11 +11,6 @@
       "sourceType": "github",
       "computedHash": "76d07c4c0bebc162cc76ca7494bfe7a90e279f35832f7ce6dfc4ce16518fd560"
     },
-    "nextjs": {
-      "source": "vercel-labs/vercel-plugin",
-      "sourceType": "github",
-      "computedHash": "228adbce76c9036e79d1177e5b9fe05062569b8aea7effb89152f83f6d4603b2"
-    },
     "prd-to-issues": {
       "source": "mattpocock/skills",
       "sourceType": "github",
