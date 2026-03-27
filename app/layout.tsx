@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Roboto_Mono, JetBrains_Mono, Inter_Tight } from "next/font/google";
 import AppHeader from "@/components/app-header";
 import BottomNav from "@/components/bottom-nav";
+import SystemProvider from "@/components/providers/SystemProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -41,11 +42,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${robotoMono.variable} ${jetbrainsMono.variable} ${interTight.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-hull text-cream scanlines">
-        <AppHeader />
-        <div className="flex-1 flex flex-col pt-[34px] pb-[72px]">
-          {children}
-        </div>
-        <BottomNav />
+        <SystemProvider>
+          <AppHeader />
+          <div className="flex-1 flex flex-col pt-[34px] pb-[72px]">
+            {children}
+          </div>
+          <BottomNav />
+        </SystemProvider>
       </body>
     </html>
   );
