@@ -4,9 +4,13 @@ interface StatusLineProps {
   status?: string;
   info?: string;
   pageName?: string;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
-export default function StatusLine({ status = 'SYS_ONLINE', info = 'SD: 2024.10.14', pageName = '' }: StatusLineProps) {
+export default function StatusLine({ status = 'SYS_ONLINE', info = 'SD: 2024.10.14', pageName = '', action }: StatusLineProps) {
   const isOffline = status.includes('OFFLINE');
   const dotColor = isOffline ? 'bg-red' : 'bg-green';
   const dotShadow = isOffline ? '0 0 6px #A64444' : '0 0 6px #78A890';
@@ -24,7 +28,16 @@ export default function StatusLine({ status = 'SYS_ONLINE', info = 'SD: 2024.10.
       <span className="font-mono text-[9px] tracking-[0.12em] uppercase text-sand">
         {displayStatus}
       </span>
-      <span className="font-mono text-[9px] text-sand ml-auto">{info}</span>
+      {action ? (
+        <button
+          onClick={action.onClick}
+          className="ml-auto font-mono text-[9px] tracking-[0.12em] uppercase text-amber hover:text-cream cursor-pointer bg-transparent border-none"
+        >
+          [{action.label}]
+        </button>
+      ) : (
+        <span className="font-mono text-[9px] text-sand ml-auto">{info}</span>
+      )}
     </div>
   );
 }

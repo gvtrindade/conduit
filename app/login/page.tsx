@@ -2,10 +2,40 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { signIn } from '@/lib/auth-client';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [operatorId, setOperatorId] = useState('');
+  const [accessKey, setAccessKey] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const { error: signInError } = await signIn.email({
+        email: operatorId,
+        password: accessKey,
+      });
+
+      if (signInError) {
+        setError('INVALID CREDENTIALS - ACCESS DENIED');
+        setLoading(false);
+        return;
+      }
+
+      router.push('/');
+    } catch (err) {
+      setError('TRANSMISSION ERROR - TRY AGAIN');
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center min-h-screen px-6 py-12">
@@ -26,7 +56,13 @@ export default function LoginPage() {
           <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// OPERATOR_ID //</label>
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-sm text-sand pointer-events-none">@</span>
-            <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 pl-10 pr-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-amber focus:border-amber focus:shadow-[0_0_0_3px_rgba(217,140,69,0.12)] transition-all placeholder:text-panel2" placeholder="CAPT_PROVISIONS" autoComplete="off" />
+            <input
+              value={operatorId}
+              onChange={(e) => setOperatorId(e.target.value)}
+              className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 pl-10 pr-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-amber focus:border-amber focus:shadow-[0_0_0_3px_rgba(217,140,69,0.12)] transition-all placeholder:text-panel2"
+              placeholder="CAPT_PROVISIONS"
+              autoComplete="off"
+            />
           </div>
         </div>
 
@@ -35,12 +71,30 @@ export default function LoginPage() {
           <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// ACCESS_KEY //</label>
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono text-sm text-sand pointer-events-none">#</span>
-            <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 pl-10 pr-16 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-amber focus:border-amber focus:shadow-[0_0_0_3px_rgba(217,140,69,0.12)] transition-all placeholder:text-panel2" type={showPw ? 'text' : 'password'} placeholder="••••••••••••" autoComplete="current-password" />
-            <button onClick={() => setShowPw(!showPw)} className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-sand tracking-wider uppercase cursor-pointer hover:text-cream transition-colors bg-transparent border-none">
+            <input
+              value={accessKey}
+              onChange={(e) => setAccessKey(e.target.value)}
+              className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 pl-10 pr-16 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-amber focus:border-amber focus:shadow-[0_0_0_3px_rgba(217,140,69,0.12)] transition-all placeholder:text-panel2"
+              type={showPw ? 'text' : 'password'}
+              placeholder="••••••••••••"
+              autoComplete="current-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPw(!showPw)}
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-sand tracking-wider uppercase cursor-pointer hover:text-cream transition-colors bg-transparent border-none"
+            >
               {showPw ? 'HIDE' : 'SHOW'}
             </button>
           </div>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div className="mb-3 p-2 bg-red-900/50 border border-red-500 rounded-lg">
+            <p className="font-mono text-[10px] text-red-400 text-center uppercase tracking-wider">{error}</p>
+          </div>
+        )}
 
         {/* Forgot */}
         <div className="flex justify-end mb-5 -mt-1">
@@ -49,7 +103,7 @@ export default function LoginPage() {
 
         {/* Auth Button */}
         <button
-          onClick={() => setLoading(true)}
+          onClick={handleSubmit}
           disabled={loading}
           className="w-full bg-amber border-2 border-[#C07830] rounded-xl py-4 font-mono text-[13px] font-bold tracking-[0.14em] uppercase text-hull cursor-pointer relative overflow-hidden hover:shadow-[0_0_40px_rgba(217,140,69,0.4)] transition-shadow disabled:opacity-75"
           style={{ boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.35), 0 0 24px rgba(217,140,69,0.25)' }}
