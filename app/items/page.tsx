@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@powersync/react';
 import SectionLabel from '@/components/section-label';
 import Toast, { useToast } from '@/components/toast';
-import { items } from '@/lib/mock-data';
+import { ITEMS_WITH_JOINS_QUERY, mapDbItemToItem, type DbItemRow } from '@/lib/item-queries';
+import type { Item } from '@/lib/types';
 
 const catLabels: Record<string, string> = {
   all: 'ALL',
@@ -39,11 +41,29 @@ export default function ItemsPage() {
   const [activeCat, setActiveCat] = useState('all');
   const { toast, showToast, hideToast } = useToast();
 
+  const { data: rawItems, isLoading } = useQuery(ITEMS_WITH_JOINS_QUERY);
+
+  const items: Item[] = useMemo(
+    () => (rawItems as unknown as DbItemRow[]).map(mapDbItemToItem),
+    [rawItems]
+  );
+
   const filteredItems = items.filter(item => {
     const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase()) || item.codename.toLowerCase().includes(search.toLowerCase());
     const matchCat = activeCat === 'all' || item.category === activeCat;
     return matchSearch && matchCat;
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">SYNCING_DATA</div>
+          <div className="font-mono text-[10px] text-panel2">Loading items from local store...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 flex flex-col">
@@ -100,58 +120,66 @@ export default function ItemsPage() {
         {/* Item List */}
         <div className="px-5 pt-4">
           <SectionLabel right={`${filteredItems.length} ITEMS`}>// RESOURCE_MANIFEST //</SectionLabel>
-          <div className="flex flex-col gap-2">
-            {filteredItems.map(item => (
-              <Link key={item.id} href={`/items/${item.id}`} className="no-underline">
-                <div className={`bg-panel border-[1.5px] border-border-custom rounded-xl overflow-hidden cursor-pointer hover:border-sand transition-colors relative ${item.alert ? alertColors[item.alert] : ''}`}>
-                  <div className="flex items-center gap-3 p-3.5">
-                    {/* Item Icon */}
-                    <div className="w-10 h-10 rounded-xl bg-hull border border-border-custom flex items-center justify-center text-xl flex-shrink-0 relative">
-                      {item.emoji}
-                      <div className="absolute inset-0 rounded-xl" style={{
-                        backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.35) 1px, transparent 1px)',
-                        backgroundSize: '3px 3px',
-                      }} />
-                    </div>
+          {filteredItems.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {filteredItems.map(item => (
+                <Link key={item.id} href={`/items/${item.id}`} className="no-underline">
+                  <div className={`bg-panel border-[1.5px] border-border-custom rounded-xl overflow-hidden cursor-pointer hover:border-sand transition-colors relative ${item.alert ? alertColors[item.alert] : ''}`}>
+                    <div className="flex items-center gap-3 p-3.5">
+                      {/* Item Icon */}
+                      <div className="w-10 h-10 rounded-xl bg-hull border border-border-custom flex items-center justify-center text-xl flex-shrink-0 relative">
+                        {item.emoji}
+                        <div className="absolute inset-0 rounded-xl" style={{
+                          backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.35) 1px, transparent 1px)',
+                          backgroundSize: '3px 3px',
+                        }} />
+                      </div>
 
-                    {/* Item Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="font-mono text-[8px] font-bold tracking-[0.1em] uppercase text-sand mb-0.5">{item.codename}</div>
-                      <div className="text-sm font-semibold text-cream truncate mb-1">{item.name}</div>
-                      <div className="flex gap-1 flex-wrap">
-                        {item.tags.map(tag => (
-                          <span key={tag} className={`font-mono text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-sm border ${
-                            tag === 'ORGANIC' || tag === 'DEAL' ? 'text-green border-green/35 bg-green/8' :
-                            tag === 'SPIKE' ? 'text-red border-red/35 bg-red/8' :
-                            tag === 'WATCH' ? 'text-amber border-amber/35 bg-amber/8' :
-                            'text-sand border-border-custom bg-sand/6'
-                          }`}>
-                            {tag}
-                          </span>
-                        ))}
+                      {/* Item Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-[8px] font-bold tracking-[0.1em] uppercase text-sand mb-0.5">{item.codename}</div>
+                        <div className="text-sm font-semibold text-cream truncate mb-1">{item.name}</div>
+                        <div className="flex gap-1 flex-wrap">
+                          {item.tags.map(tag => (
+                            <span key={tag} className={`font-mono text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-sm border ${
+                              tag === 'ORGANIC' || tag === 'DEAL' ? 'text-green border-green/35 bg-green/8' :
+                              tag === 'SPIKE' ? 'text-red border-red/35 bg-red/8' :
+                              tag === 'WATCH' ? 'text-amber border-amber/35 bg-amber/8' :
+                              'text-sand border-border-custom bg-sand/6'
+                            }`}>
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Price */}
+                      <div className="text-right flex-shrink-0">
+                        <span className={`font-heading text-[17px] font-bold block leading-none ${
+                          item.alert === 'spike' ? 'text-red' : item.alert === 'drop' ? 'text-green' : item.alert === 'watch' ? 'text-amber' : 'text-cream'
+                        }`}>
+                          {item.lastPrice.toFixed(2)}
+                        </span>
+                        <span className="font-mono text-[8px] text-sand block mt-0.5">{item.unit}</span>
+                        <span className={`font-mono text-[10px] font-bold block mt-1 ${deltaColors[item.deltaDir]}`}>
+                          {deltaArrow[item.deltaDir]} {item.deltaDir === 'flat' ? '+' : ''}{Math.abs(item.delta)}%
+                        </span>
                       </div>
                     </div>
-
-                    {/* Price */}
-                    <div className="text-right flex-shrink-0">
-                      <span className={`font-heading text-[17px] font-bold block leading-none ${
-                        item.alert === 'spike' ? 'text-red' : item.alert === 'drop' ? 'text-green' : item.alert === 'watch' ? 'text-amber' : 'text-cream'
-                      }`}>
-                        {item.lastPrice.toFixed(2)}
-                      </span>
-                      <span className="font-mono text-[8px] text-sand block mt-0.5">{item.unit}</span>
-                      <span className={`font-mono text-[10px] font-bold block mt-1 ${deltaColors[item.deltaDir]}`}>
-                        {deltaArrow[item.deltaDir]} {item.deltaDir === 'flat' ? '+' : ''}{Math.abs(item.delta)}%
-                      </span>
-                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="px-5 py-12 text-center">
+              <div className="text-4xl opacity-40 mb-3">⊘</div>
+              <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">NO_RESOURCES_FOUND</div>
+              <div className="text-xs text-panel2">Waiting for initial sync or try a different filter.</div>
+            </div>
+          )}
         </div>
 
-        {filteredItems.length === 0 && (
+        {filteredItems.length === 0 && items.length > 0 && (
           <div className="px-5 py-12 text-center">
             <div className="text-4xl opacity-40 mb-3">⊘</div>
             <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">NO_RESOURCES_FOUND</div>

@@ -1,17 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
-import { receipts } from '@/lib/mock-data';
+import { RECEIPTS_WITH_MERCHANT_QUERY, mapDbReceiptToReceipt, type DbReceiptRow } from '@/lib/receipt-queries';
+import type { Receipt } from '@/lib/types';
 
 export default function DashboardPage() {
   const [modalType, setModalType] = useState<string | null>(null);
   const { toast, showToast, hideToast } = useToast();
   const [qrStatus, setQrStatus] = useState('SCANNING');
+
+  const { data: rawReceipts, isLoading } = useQuery(RECEIPTS_WITH_MERCHANT_QUERY);
+
+  const receipts: Receipt[] = useMemo(
+    () => (rawReceipts as unknown as DbReceiptRow[]).map(mapDbReceiptToReceipt),
+    [rawReceipts]
+  );
+
   const lastReceipt = receipts[0];
   const recentReceipts = receipts.slice(1);
 
@@ -20,6 +30,17 @@ export default function DashboardPage() {
     if (s === 'PND') return 'amber' as const;
     return 'red' as const;
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">SYNCING_DATA</div>
+          <div className="font-mono text-[10px] text-panel2">Loading dashboard from local store...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 flex flex-col">
@@ -65,31 +86,39 @@ export default function DashboardPage() {
         {/* Last Transaction */}
         <div className="px-5 pt-4">
           <SectionLabel>// LAST_TRANSACTION //</SectionLabel>
-          <Link href={`/receipts/${lastReceipt.id}`} className="no-underline">
-            <div className="bg-panel border-2 border-border-custom rounded-xl overflow-hidden cursor-pointer hover:border-sand transition-colors">
-              <div className="bg-hull px-3.5 py-2 border-b border-border-custom">
-                <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">
-                  MERCHANT: <strong className="text-cream">{lastReceipt.merchant}</strong>
-                </span>
-                <br/>
-                <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">
-                  DATE: <strong className="text-cream">{lastReceipt.date}</strong>
-                </span>
-              </div>
-              <div className="p-3.5">
-                <div className="flex items-baseline justify-between">
-                  <div>
-                    <span className="font-heading text-3xl font-bold text-cream">{lastReceipt.total.toFixed(2)}</span>
-                    <span className="font-mono text-sm text-sand ml-1.5">kCr</span>
+          {lastReceipt ? (
+            <Link href={`/receipts/${lastReceipt.id}`} className="no-underline">
+              <div className="bg-panel border-2 border-border-custom rounded-xl overflow-hidden cursor-pointer hover:border-sand transition-colors">
+                <div className="bg-hull px-3.5 py-2 border-b border-border-custom">
+                  <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">
+                    MERCHANT: <strong className="text-cream">{lastReceipt.merchant}</strong>
+                  </span>
+                  <br/>
+                  <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">
+                    DATE: <strong className="text-cream">{lastReceipt.date}</strong>
+                  </span>
+                </div>
+                <div className="p-3.5">
+                  <div className="flex items-baseline justify-between">
+                    <div>
+                      <span className="font-heading text-3xl font-bold text-cream">{lastReceipt.total.toFixed(2)}</span>
+                      <span className="font-mono text-sm text-sand ml-1.5">kCr</span>
+                    </div>
+                    <Badge variant={statusVariant(lastReceipt.status)}>[ STATUS: {lastReceipt.status} ]</Badge>
                   </div>
-                  <Badge variant={statusVariant(lastReceipt.status)}>[ STATUS: {lastReceipt.status} ]</Badge>
-                </div>
-                <div className="font-mono text-[10px] text-sand tracking-[0.08em] uppercase mt-1">
-                  ITEMS: {lastReceipt.itemCount}
+                  <div className="font-mono text-[10px] text-sand tracking-[0.08em] uppercase mt-1">
+                    ITEMS: {lastReceipt.itemCount}
+                  </div>
                 </div>
               </div>
+            </Link>
+          ) : (
+            <div className="bg-panel border-2 border-border-custom rounded-xl p-6 text-center">
+              <div className="text-2xl opacity-40 mb-2">📋</div>
+              <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-sand">NO_RECEIPTS_YET</div>
+              <div className="font-mono text-[9px] text-panel2 mt-1">Register your first receipt above.</div>
             </div>
-          </Link>
+          )}
         </div>
 
         {/* Recent Log Entries */}
@@ -98,30 +127,36 @@ export default function DashboardPage() {
             <SectionLabel className="!mb-0 !border-none !pb-0">// RECENT_LOG_ENTRIES //</SectionLabel>
             <span className="font-mono text-[9px] text-blue cursor-pointer">[ SEE_FULL_LOGS ]</span>
           </div>
-          <div className="bg-panel border-2 border-border-custom rounded-xl overflow-hidden">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-hull">
-                  <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">ID</th>
-                  <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">MERCHANT</th>
-                  <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">COST</th>
-                  <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">STATUS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentReceipts.map((r, i) => (
-                  <tr key={r.id} className={i % 2 === 0 ? 'bg-panel' : 'bg-panel2'}>
-                    <td className="font-mono text-[10px] text-sand px-2.5 py-[9px]">{r.id}</td>
-                    <td className="text-xs text-cream px-2.5 py-[9px]">{r.merchant}</td>
-                    <td className="font-heading text-xs font-bold text-cream px-2.5 py-[9px]">{r.total.toFixed(2)}</td>
-                    <td className="px-2.5 py-[9px]">
-                      <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
-                    </td>
+          {recentReceipts.length > 0 ? (
+            <div className="bg-panel border-2 border-border-custom rounded-xl overflow-hidden">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-hull">
+                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">ID</th>
+                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">MERCHANT</th>
+                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">COST</th>
+                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">STATUS</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {recentReceipts.map((r, i) => (
+                    <tr key={r.id} className={i % 2 === 0 ? 'bg-panel' : 'bg-panel2'}>
+                      <td className="font-mono text-[10px] text-sand px-2.5 py-[9px]">{r.id}</td>
+                      <td className="text-xs text-cream px-2.5 py-[9px]">{r.merchant}</td>
+                      <td className="font-heading text-xs font-bold text-cream px-2.5 py-[9px]">{r.total.toFixed(2)}</td>
+                      <td className="px-2.5 py-[9px]">
+                        <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="bg-panel border-2 border-border-custom rounded-xl p-6 text-center">
+              <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-sand">NO_LOG_ENTRIES</div>
+            </div>
+          )}
         </div>
       </div>
 
