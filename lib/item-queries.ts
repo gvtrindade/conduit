@@ -1,4 +1,4 @@
-import type { Item } from "./types";
+import type { Item, PricePoint } from "./types";
 
 export const ITEMS_WITH_JOINS_QUERY = `
   SELECT
@@ -77,5 +77,75 @@ export function mapDbItemToItem(row: DbItemRow): Item {
     alert,
     tags,
     priceHistory: [],
+  };
+}
+
+// Item detail query with category join
+export const ITEM_DETAIL_QUERY = `
+  SELECT
+    items.id,
+    items.name,
+    items.codename,
+    items.emoji,
+    categories.name AS category_name,
+    tags.name AS tag_name,
+    items.unit,
+    items.last_price,
+    items.last_price_date,
+    items.lowest_price,
+    items.lowest_price_date,
+    merchants.name AS freq_source_name
+  FROM items
+  LEFT JOIN categories ON items.category_id = categories.id
+  LEFT JOIN tags ON items.primary_tag_id = tags.id
+  LEFT JOIN merchants ON items.freq_source_id = merchants.id
+  WHERE items.id = ?
+`;
+
+// Price history query for an item
+export const PRICE_HISTORY_QUERY = `
+  SELECT
+    price_history.price,
+    price_history.recorded_at
+  FROM price_history
+  WHERE price_history.item_id = ?
+  ORDER BY price_history.recorded_at ASC
+`;
+
+export interface DbPriceHistoryRow {
+  price: number;
+  recorded_at: string;
+}
+
+// Recent receipts containing this item
+export const ITEM_RECEIPTS_QUERY = `
+  SELECT
+    receipts.id,
+    merchants.name AS merchant_name,
+    receipts.receipt_date,
+    receipt_items.unit_price,
+    receipt_items.total
+  FROM receipt_items
+  JOIN receipts ON receipt_items.receipt_id = receipts.id
+  LEFT JOIN merchants ON receipts.merchant_id = merchants.id
+  WHERE receipt_items.item_id = ?
+  ORDER BY receipts.receipt_date DESC
+  LIMIT 5
+`;
+
+export interface DbItemReceiptRow {
+  id: string;
+  merchant_name: string | null;
+  receipt_date: string | null;
+  unit_price: number | null;
+  total: number | null;
+}
+
+export function mapDbPriceHistoryToPricePoint(row: DbPriceHistoryRow): PricePoint {
+  const date = new Date(row.recorded_at);
+  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  return {
+    month: months[date.getUTCMonth()] || '',
+    price: Number(row.price) || 0,
   };
 }

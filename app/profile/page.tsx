@@ -1,11 +1,63 @@
 'use client';
 
+import { useMemo } from 'react';
+import { useQuery } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ProgressBar from '@/components/progress-bar';
-import { userProfile } from '@/lib/mock-data';
+import { useSession } from '@/lib/auth-client';
+import {
+  USER_PROFILE_BY_EMAIL_QUERY,
+  MISSION_COUNT_QUERY,
+  ITEMS_TRACKED_COUNT_QUERY,
+  VARIANCE_QUERY,
+  mapDbUserToProfile,
+  type DbUserRow,
+  type DbMissionCountRow,
+  type DbItemsTrackedRow,
+  type DbVarianceRow,
+} from '@/lib/profile-queries';
 
 export default function ProfilePage() {
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email || '';
+
+  const { data: rawUser, isLoading: userLoading } = useQuery(
+    USER_PROFILE_BY_EMAIL_QUERY,
+    [userEmail]
+  );
+  const { data: rawMissionCount, isLoading: missionLoading } = useQuery(MISSION_COUNT_QUERY);
+  const { data: rawItemsTracked, isLoading: itemsLoading } = useQuery(ITEMS_TRACKED_COUNT_QUERY);
+  const { data: rawVariance, isLoading: varianceLoading } = useQuery(VARIANCE_QUERY);
+
+  const isLoading = userLoading || missionLoading || itemsLoading || varianceLoading;
+
+  const profile = useMemo(() => {
+    const userRow = (rawUser as unknown as DbUserRow[])?.[0];
+    const missionCount = (rawMissionCount as unknown as DbMissionCountRow[])?.[0]?.mission_count || 0;
+    const itemsTracked = (rawItemsTracked as unknown as DbItemsTrackedRow[])?.[0]?.items_tracked || 0;
+    const variance = (rawVariance as unknown as DbVarianceRow[])?.[0]?.avg_variance || 0;
+    return mapDbUserToProfile(userRow, missionCount, itemsTracked, variance);
+  }, [rawUser, rawMissionCount, rawItemsTracked, rawVariance]);
+
+  const initials = profile.callsign
+    .split(/[\s_-]+/)
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || '??';
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">SYNCING_DATA</div>
+          <div className="font-mono text-[10px] text-panel2">Loading profile from local store...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative flex-1 flex flex-col">
       <div className="flex-1 overflow-y-auto scrollbar-none">
@@ -33,13 +85,13 @@ export default function ProfilePage() {
               className="w-[72px] h-[72px] flex-shrink-0 rounded-2xl border-2 border-amber bg-panel2 flex items-center justify-center text-[26px] font-bold text-cream relative"
               style={{ boxShadow: '0 0 20px rgba(217,140,69,0.2)' }}
             >
-              CP
+              {initials}
               <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green rounded-full border-2 border-panel" style={{ boxShadow: '0 0 8px #78A890' }} />
             </div>
             <div className="flex-1">
-              <div className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-amber mb-1">// RANK: {userProfile.rank} //</div>
-              <div className="font-tight text-[22px] font-bold text-cream uppercase tracking-[0.04em] leading-none mb-1">{userProfile.callsign}</div>
-              <div className="text-xs text-sand mb-2">{userProfile.email}</div>
+              <div className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-amber mb-1">// RANK: {profile.rank} //</div>
+              <div className="font-tight text-[22px] font-bold text-cream uppercase tracking-[0.04em] leading-none mb-1">{profile.callsign}</div>
+              <div className="text-xs text-sand mb-2">{profile.email}</div>
               <div className="flex gap-1.5">
                 <span className="font-mono text-[9px] font-bold tracking-[0.08em] uppercase px-2 py-0.5 rounded-sm border text-amber border-amber bg-amber/10">CAPTAIN</span>
                 <span className="font-mono text-[9px] font-bold tracking-[0.08em] uppercase px-2 py-0.5 rounded-sm border text-green border-green bg-green/10">VERIFIED</span>
@@ -49,15 +101,15 @@ export default function ProfilePage() {
 
           <div className="grid grid-cols-3 border-t border-border-custom">
             <div className="py-2.5 px-3 text-center border-r border-border-custom">
-              <span className="font-heading text-lg font-bold text-cream block leading-none">{userProfile.missions}</span>
+              <span className="font-heading text-lg font-bold text-cream block leading-none">{profile.missions}</span>
               <span className="font-mono text-[8px] tracking-[0.12em] uppercase text-sand block mt-1">MISSIONS</span>
             </div>
             <div className="py-2.5 px-3 text-center border-r border-border-custom">
-              <span className="font-heading text-lg font-bold text-cream block leading-none">{userProfile.itemsTracked}</span>
+              <span className="font-heading text-lg font-bold text-cream block leading-none">{profile.itemsTracked}</span>
               <span className="font-mono text-[8px] tracking-[0.12em] uppercase text-sand block mt-1">ITEMS_TRK</span>
             </div>
             <div className="py-2.5 px-3 text-center">
-              <span className="font-heading text-lg font-bold text-green block leading-none">{userProfile.variance}</span>
+              <span className="font-heading text-lg font-bold text-green block leading-none">{profile.variance}</span>
               <span className="font-mono text-[8px] tracking-[0.12em] uppercase text-sand block mt-1">VARIANCE</span>
             </div>
           </div>
@@ -74,17 +126,17 @@ export default function ProfilePage() {
             <div className="p-3.5">
               <div className="flex items-center justify-between mb-2.5">
                 <span className="font-heading text-[40px] font-bold text-amber leading-none" style={{ textShadow: '0 0 30px rgba(217,140,69,0.35)' }}>
-                  0{userProfile.level}
+                  0{profile.level}
                 </span>
                 <div className="text-right">
                   <span className="font-tight text-lg font-bold text-cream uppercase tracking-[0.04em] block">CAPTAIN</span>
                   <span className="font-mono text-[9px] text-sand tracking-[0.08em] uppercase">PROVISIONING_AUTHORITY</span>
                 </div>
               </div>
-              <ProgressBar value={userProfile.xp} max={userProfile.xpNext} color="linear-gradient(90deg, var(--amber), rgba(217,140,69,0.5))" height="h-2" />
+              <ProgressBar value={profile.xp} max={profile.xpNext} color="linear-gradient(90deg, var(--amber), rgba(217,140,69,0.5))" height="h-2" />
               <div className="flex justify-between mt-1.5 font-mono text-[8px] tracking-[0.08em] uppercase">
-                <span className="text-sand">XP: {userProfile.xp.toLocaleString()} / {userProfile.xpNext.toLocaleString()}</span>
-                <span className="text-amber">▲ {(userProfile.xpNext - userProfile.xp).toLocaleString()} TO COMMANDER</span>
+                <span className="text-sand">XP: {profile.xp.toLocaleString()} / {profile.xpNext.toLocaleString()}</span>
+                <span className="text-amber">▲ {(profile.xpNext - profile.xp).toLocaleString()} TO COMMANDER</span>
               </div>
 
               {/* Rank Ladder */}
@@ -117,9 +169,9 @@ export default function ProfilePage() {
             {[
               { icon: '🎯', name: 'Budget Sniper', desc: 'Stayed under budget 3 months straight.', progress: 100, color: 'green', status: 'UNLOCKED' },
               { icon: '📦', name: 'Bulk Hauler', desc: 'Single receipt exceeding 200 kCr.', progress: 100, color: 'amber', status: 'UNLOCKED' },
-              { icon: '🔭', name: 'Deep Scanner', desc: 'Track 200 unique items.', progress: 71, color: 'blue', status: '142 / 200' },
+              { icon: '🔭', name: 'Deep Scanner', desc: 'Track 200 unique items.', progress: Math.min(Math.round((profile.itemsTracked / 200) * 100), 100), color: 'blue', status: `${profile.itemsTracked} / 200` },
               { icon: '🛸', name: 'Fleet Admiral', desc: 'Reach Commander rank or above.', progress: 0, color: 'sand', status: 'LOCKED', locked: true },
-              { icon: '📉', name: 'Frugal Ops', desc: 'Log a -10% variance in a month.', progress: 42, color: 'green', status: '-4.2% / -10%' },
+              { icon: '📉', name: 'Frugal Ops', desc: 'Log a -10% variance in a month.', progress: Math.min(Math.round((Math.abs(parseFloat(profile.variance)) / 10) * 100), 100), color: 'green', status: `${profile.variance} / -10%` },
               { icon: '⚡', name: 'Crisis Pilot', desc: 'Override a receipt anomaly manually.', progress: 0, color: 'sand', status: 'LOCKED', locked: true },
             ].map(ach => (
               <div key={ach.name} className={`bg-panel border border-border-custom rounded-xl p-3 flex flex-col gap-1.5 ${ach.locked ? 'opacity-45' : ''}`}>
