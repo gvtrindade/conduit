@@ -1,12 +1,59 @@
 'use client';
 
+import { useMemo } from 'react';
+import { useQuery } from '@powersync/react';
 import TopNav from '@/components/top-nav';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
-import { manifests } from '@/lib/mock-data';
+import {
+  MANIFEST_DETAIL_QUERY,
+  MANIFEST_ITEMS_QUERY,
+  MANIFEST_CREW_QUERY,
+  mapDbManifestDetailToManifest,
+  mapDbManifestItemToManifestItem,
+  mapDbCrewToCrewMember,
+  type DbManifestDetailRow,
+  type DbManifestItemRow,
+  type DbManifestCrewRow,
+} from '@/lib/manifest-queries';
 
 export default function ManifestDetailClient({ id }: { id: string }) {
-  const mft = manifests.find(m => m.id === id) || manifests[0];
+  const { data: rawManifest, isLoading: manifestLoading } = useQuery(MANIFEST_DETAIL_QUERY, [id]);
+  const { data: rawItems, isLoading: itemsLoading } = useQuery(MANIFEST_ITEMS_QUERY, [id]);
+  const { data: rawCrew, isLoading: crewLoading } = useQuery(MANIFEST_CREW_QUERY, [id]);
+
+  const isLoading = manifestLoading || itemsLoading || crewLoading;
+
+  const mft = useMemo(() => {
+    const rows = rawManifest as unknown as DbManifestDetailRow[];
+    if (!rows || rows.length === 0) return null;
+    const items = (rawItems as unknown as DbManifestItemRow[] || []).map(mapDbManifestItemToManifestItem);
+    const crew = (rawCrew as unknown as DbManifestCrewRow[] || []).map(mapDbCrewToCrewMember);
+    return mapDbManifestDetailToManifest(rows[0], items, crew);
+  }, [rawManifest, rawItems, rawCrew]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">LOADING_MANIFEST</div>
+          <div className="font-mono text-[10px] text-panel2">Fetching manifest data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!mft) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl opacity-40 mb-3">⊘</div>
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">MANIFEST_NOT_FOUND</div>
+          <div className="text-xs text-panel2">Manifest #{id} does not exist.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 flex flex-col">
@@ -73,12 +120,6 @@ export default function ManifestDetailClient({ id }: { id: string }) {
               ) : null}
             </div>
           ))}
-        </div>
-
-        <div className="mx-5 mt-3 bg-hull border border-border-custom rounded-lg px-3.5 py-3 flex gap-3.5">
-          <div className="font-mono text-[10px] uppercase tracking-wider"><span className="text-sand">GROC: </span><span className="text-cream font-bold">180</span></div>
-          <div className="font-mono text-[10px] uppercase tracking-wider"><span className="text-sand">HSE: </span><span className="text-cream font-bold">40</span></div>
-          <div className="font-mono text-[10px] uppercase tracking-wider"><span className="text-sand">TECH: </span><span className="text-cream font-bold">92</span></div>
         </div>
 
         <div className="px-5 pt-4">

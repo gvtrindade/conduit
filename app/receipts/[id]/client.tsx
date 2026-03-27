@@ -1,13 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@powersync/react';
 import TopNav from '@/components/top-nav';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import DataField from '@/components/data-field';
 import ModalOverlay from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
-import { receipts } from '@/lib/mock-data';
+import {
+  RECEIPT_DETAIL_QUERY,
+  RECEIPT_ITEMS_QUERY,
+  mapDbReceiptDetailToReceipt,
+  mapDbReceiptItemToReceiptItem,
+  type DbReceiptDetailRow,
+  type DbReceiptItemRow,
+} from '@/lib/receipt-detail-queries';
 
 const tagStyles: Record<string, string> = {
   ORG: 'text-green bg-green/10 border-green/25',
@@ -20,15 +28,40 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
   const [showDelete, setShowDelete] = useState(false);
   const { toast, showToast, hideToast } = useToast();
 
-  const receipt = receipts.find(r => r.id === id) || receipts[0];
-  const categories = [
-    { name: 'Produce', amount: 42.80, pct: 30, color: 'var(--green)' },
-    { name: 'Dairy & Eggs', amount: 28.47, pct: 20, color: 'var(--blue)' },
-    { name: 'Proteins', amount: 25.38, pct: 18, color: 'var(--amber)' },
-    { name: 'Pantry', amount: 17.36, pct: 13, color: 'var(--sand)' },
-    { name: 'Household', amount: 17.62, pct: 12, color: 'var(--red)' },
-    { name: 'Beverages', amount: 10.98, pct: 8, color: 'var(--panel2)' },
-  ];
+  const { data: rawReceipts, isLoading: receiptLoading } = useQuery(RECEIPT_DETAIL_QUERY, [id]);
+  const { data: rawItems, isLoading: itemsLoading } = useQuery(RECEIPT_ITEMS_QUERY, [id]);
+
+  const isLoading = receiptLoading || itemsLoading;
+
+  const receipt = useMemo(() => {
+    const rows = rawReceipts as unknown as DbReceiptDetailRow[];
+    if (!rows || rows.length === 0) return null;
+    const items = (rawItems as unknown as DbReceiptItemRow[] || []).map(mapDbReceiptItemToReceiptItem);
+    return mapDbReceiptDetailToReceipt(rows[0], items);
+  }, [rawReceipts, rawItems]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">LOADING_RECEIPT</div>
+          <div className="font-mono text-[10px] text-panel2">Fetching receipt data...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!receipt) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-4xl opacity-40 mb-3">⊘</div>
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">RECEIPT_NOT_FOUND</div>
+          <div className="text-xs text-panel2">Receipt #{id} does not exist.</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 flex flex-col">
@@ -85,9 +118,6 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
                   <span className="font-mono text-[9px] tracking-[0.08em] uppercase text-sand flex items-center gap-1">
                     📅 <span className="text-cream">{receipt.date}</span>
                   </span>
-                  <span className="font-mono text-[9px] tracking-[0.08em] uppercase text-sand flex items-center gap-1">
-                    🕐 <span className="text-cream">14:32 GST</span>
-                  </span>
                 </div>
               </div>
             </div>
@@ -143,50 +173,12 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
         )}
 
         <div className="px-5 pt-4">
-          <SectionLabel>// CATEGORY_DISTRIBUTION //</SectionLabel>
-          <div className="flex flex-col gap-1.5">
-            {categories.map(cat => (
-              <div key={cat.name} className="flex items-center gap-2.5">
-                <div className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: cat.color }} />
-                <span className="font-mono text-[10px] uppercase tracking-wider text-sand flex-1">{cat.name}</span>
-                <div className="w-20 h-[5px] bg-hull border border-border-custom rounded-sm overflow-hidden flex-shrink-0">
-                  <div className="h-full rounded-sm" style={{ width: `${cat.pct}%`, background: cat.color }} />
-                </div>
-                <span className="font-heading text-[11px] font-bold text-cream min-w-[44px] text-right">{cat.amount.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="px-5 pt-4">
-          <SectionLabel>// TACTICAL_INTEL //</SectionLabel>
-          <div className="flex flex-col gap-2">
-            <div className="bg-panel border border-red/30 rounded-xl p-3 flex gap-3 items-center">
-              <div className="w-8 h-8 rounded-lg bg-red/10 flex items-center justify-center text-sm flex-shrink-0">⚠️</div>
-              <div className="flex-1">
-                <div className="font-mono text-[10px] font-bold tracking-[0.07em] uppercase text-cream mb-0.5">PRICE_ANOMALY: Kombucha</div>
-                <div className="text-[11px] text-sand leading-relaxed">+38% above your 90-day average of 3.99 kCr.</div>
-              </div>
-              <Badge variant="red">SPIKE</Badge>
-            </div>
-            <div className="bg-panel border border-green/25 rounded-xl p-3 flex gap-3 items-center">
-              <div className="w-8 h-8 rounded-lg bg-green/10 flex items-center justify-center text-sm flex-shrink-0">💰</div>
-              <div className="flex-1">
-                <div className="font-mono text-[10px] font-bold tracking-[0.07em] uppercase text-cream mb-0.5">SAVINGS_CAPTURED</div>
-                <div className="text-[11px] text-sand leading-relaxed">Member discount saved 8.40 kCr — 5.6% below list price.</div>
-              </div>
-              <Badge variant="green">OK</Badge>
-            </div>
-          </div>
-        </div>
-
-        <div className="px-5 pt-4">
           <SectionLabel>// RECEIPT_METADATA //</SectionLabel>
           <div className="grid grid-cols-2 gap-2">
-            <DataField label="Log Method" value="SCAN // OCR" />
-            <DataField label="Confidence" value="99.2%" valueColor="var(--green)" />
-            <DataField label="Store Number" value="#SEC-7-042" />
+            <DataField label="Log Method" value="SYNCED" />
+            <DataField label="Confidence" value="SERVER" valueColor="var(--green)" />
             <DataField label="Sync Status" value="SYNCED ✓" valueColor="var(--green)" />
+            <DataField label="Items" value={`${receipt.itemCount}`} />
           </div>
         </div>
 

@@ -1,14 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ProgressBar from '@/components/progress-bar';
 import CrewAvatars from '@/components/crew-avatars';
 import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
-import { manifests } from '@/lib/mock-data';
+import { MANIFESTS_LIST_QUERY, mapDbManifestToManifestListItem, type DbManifestListRow } from '@/lib/manifest-queries';
+import type { Manifest } from '@/lib/types';
 
 const statusColors: Record<string, { stripe: string; border: string; ring: string }> = {
   active: { stripe: 'bg-green', border: 'border-green/40', ring: 'shadow-[0_0_0_0_rgba(120,168,144,0)] animate-[activering_3s_ease_infinite]' },
@@ -22,8 +24,26 @@ export default function ManifestsPage() {
   const [showNew, setShowNew] = useState(false);
   const { toast, showToast, hideToast } = useToast();
 
+  const { data: rawManifests, isLoading } = useQuery(MANIFESTS_LIST_QUERY);
+
+  const manifests: Manifest[] = useMemo(
+    () => (rawManifests as unknown as DbManifestListRow[] || []).map(mapDbManifestToManifestListItem),
+    [rawManifests]
+  );
+
   const filtered = filter === 'all' ? manifests : manifests.filter(m => m.status === filter);
   const activeCount = manifests.filter(m => m.status === 'active').length;
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">SYNCING_MANIFESTS</div>
+          <div className="font-mono text-[10px] text-panel2">Loading manifest data...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex-1 flex flex-col">
@@ -74,42 +94,17 @@ export default function ManifestsPage() {
               <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">ACTIVE</span>
             </div>
             <div className="py-2.5 text-center border-r border-border-custom">
-              <span className="font-heading text-xl font-bold text-amber block leading-none">983</span>
+              <span className="font-heading text-xl font-bold text-amber block leading-none">{manifests.reduce((s, m) => s + m.estTotal, 0)}</span>
               <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">COMBINED kCr</span>
             </div>
             <div className="py-2.5 text-center border-r border-border-custom">
-              <span className="font-heading text-xl font-bold text-cream block leading-none">46</span>
+              <span className="font-heading text-xl font-bold text-cream block leading-none">{manifests.reduce((s, m) => s + m.checkedCount, 0)}</span>
               <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">ITEMS</span>
             </div>
             <div className="py-2.5 text-center">
-              <span className="font-heading text-xl font-bold text-cream block leading-none">5</span>
-              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">CREW</span>
+              <span className="font-heading text-xl font-bold text-cream block leading-none">{manifests.length}</span>
+              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">MANIFESTS</span>
             </div>
-          </div>
-          <div className="border-t border-border-custom px-3.5 py-2.5">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="font-mono text-[9px] tracking-[0.1em] uppercase text-sand">ACTIVE MANIFESTS // BUDGET ALLOCATION</span>
-              <span className="font-heading text-[11px] font-bold text-cream">983 kCr</span>
-            </div>
-            <div className="h-1.5 bg-hull border border-border-custom rounded-sm overflow-hidden flex gap-0.5 p-px">
-              <div className="h-full rounded-sm bg-green/80" style={{ width: '32%' }} />
-              <div className="h-full rounded-sm bg-blue/80" style={{ width: '27%' }} />
-              <div className="h-full rounded-sm bg-amber/80" style={{ width: '41%' }} />
-            </div>
-            <div className="flex justify-between mt-1">
-              <span className="font-mono text-[8px] text-green">■ WEEK_42 312</span>
-              <span className="font-mono text-[8px] text-blue">■ BULK_RUN 265</span>
-              <span className="font-mono text-[8px] text-amber">■ MONTHLY 406</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Conflict Banner */}
-        <div className="mx-5 mt-3 bg-amber/8 border border-amber/30 rounded-xl p-3 flex gap-2.5 items-start">
-          <span className="text-sm">⚡</span>
-          <div>
-            <div className="font-mono text-[10px] font-bold tracking-[0.07em] uppercase text-amber mb-0.5">MULTI-MANIFEST CONFLICT DETECTED</div>
-            <div className="text-[11px] text-sand leading-relaxed">WEEK_42_REUP and BULK_COSTCO_RUN both contain <strong className="text-cream">Chicken Breast</strong> and <strong className="text-cream">Olive Oil</strong>.</div>
           </div>
         </div>
 
@@ -118,64 +113,66 @@ export default function ManifestsPage() {
           <SectionLabel right={`${filtered.length} ${filter.toUpperCase()}`}>
             {filter === 'all' ? '// ACTIVE_MISSIONS //' : `// ${filter.toUpperCase()} //`}
           </SectionLabel>
-          <div className="flex flex-col gap-2.5">
-            {filtered.map(mft => (
-              <Link key={mft.id} href={`/manifests/${mft.id}`} className="no-underline">
-                <div className={`bg-panel border-[1.5px] border-border-custom rounded-2xl overflow-hidden cursor-pointer hover:border-sand transition-colors relative ${statusColors[mft.status].ring} ${statusColors[mft.status].border}`}>
-                  {/* Left status stripe */}
-                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${statusColors[mft.status].stripe}`} style={mft.status === 'active' ? { boxShadow: '2px 0 8px rgba(120,168,144,0.4)' } : undefined} />
+          {filtered.length > 0 ? (
+            <div className="flex flex-col gap-2.5">
+              {filtered.map(mft => (
+                <Link key={mft.id} href={`/manifests/${mft.id}`} className="no-underline">
+                  <div className={`bg-panel border-[1.5px] border-border-custom rounded-2xl overflow-hidden cursor-pointer hover:border-sand transition-colors relative ${statusColors[mft.status]?.ring || ''} ${statusColors[mft.status]?.border || ''}`}>
+                    {/* Left status stripe */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${statusColors[mft.status]?.stripe || 'bg-panel2'}`} style={mft.status === 'active' ? { boxShadow: '2px 0 8px rgba(120,168,144,0.4)' } : undefined} />
 
-                  <div className="pl-4.5 pr-3.5 pt-3 pb-2 flex items-start gap-2.5">
-                    <div className="w-[38px] h-[38px] rounded-lg bg-hull border border-border-custom flex items-center justify-center text-lg flex-shrink-0 relative">
-                      {mft.status === 'active' ? '🛒' : mft.status === 'draft' ? '💊' : mft.status === 'done' ? '✅' : '🗄️'}
-                      {mft.status === 'active' && (
-                        <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green border-2 border-panel" style={{ boxShadow: '0 0 6px #78A890', animation: 'pulse-dot 1.5s infinite' }} />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-mono text-[8px] font-bold tracking-[0.12em] uppercase text-sand mb-0.5">MFT-{mft.id.toUpperCase()}</div>
-                      <div className="font-tight text-base font-bold text-cream uppercase tracking-[0.03em] truncate mb-1">{mft.title}</div>
-                      <div className="flex gap-1 flex-wrap items-center">
-                        <Badge variant={mft.status === 'active' ? 'green' : mft.status === 'draft' ? 'blue' : 'sand'}>
-                          {mft.status === 'active' ? '● ACTIVE' : mft.status === 'draft' ? '◌ DRAFT' : mft.status === 'done' ? '✓ COMPLETE' : '⊗ ARCHIVED'}
-                        </Badge>
-                        <Badge variant="sand">{mft.type}</Badge>
+                    <div className="pl-4.5 pr-3.5 pt-3 pb-2 flex items-start gap-2.5">
+                      <div className="w-[38px] h-[38px] rounded-lg bg-hull border border-border-custom flex items-center justify-center text-lg flex-shrink-0 relative">
+                        {mft.status === 'active' ? '🛒' : mft.status === 'draft' ? '💊' : mft.status === 'done' ? '✅' : '🗄️'}
+                        {mft.status === 'active' && (
+                          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green border-2 border-panel" style={{ boxShadow: '0 0 6px #78A890', animation: 'pulse-dot 1.5s infinite' }} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-mono text-[8px] font-bold tracking-[0.12em] uppercase text-sand mb-0.5">MFT-{mft.id.toUpperCase()}</div>
+                        <div className="font-tight text-base font-bold text-cream uppercase tracking-[0.03em] truncate mb-1">{mft.title}</div>
+                        <div className="flex gap-1 flex-wrap items-center">
+                          <Badge variant={mft.status === 'active' ? 'green' : mft.status === 'draft' ? 'blue' : 'sand'}>
+                            {mft.status === 'active' ? '● ACTIVE' : mft.status === 'draft' ? '◌ DRAFT' : mft.status === 'done' ? '✓ COMPLETE' : '⊗ ARCHIVED'}
+                          </Badge>
+                          <Badge variant="sand">{mft.type}</Badge>
+                        </div>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <span className="font-heading text-lg font-bold text-cream block leading-none">{mft.estTotal}</span>
+                        <span className="font-mono text-[8px] text-sand block mt-0.5">EST kCr</span>
+                        <span className={`font-mono text-[9px] block mt-1 ${mft.status === 'done' ? 'text-green' : 'text-amber'}`}>{mft.confidence}</span>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <span className="font-heading text-lg font-bold text-cream block leading-none">{mft.estTotal}</span>
-                      <span className="font-mono text-[8px] text-sand block mt-0.5">EST kCr</span>
-                      <span className={`font-mono text-[9px] block mt-1 ${mft.status === 'done' ? 'text-green' : 'text-amber'}`}>{mft.confidence}</span>
-                    </div>
-                  </div>
 
-                  {/* Progress */}
-                  {mft.items.length > 0 && (
-                    <div className="px-3.5 pl-4.5 mb-2">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-[8px] tracking-[0.08em] uppercase text-sand">ITEMS CHECKED</span>
-                        <span className="font-heading text-[10px] font-bold text-cream">{mft.checkedCount} / {mft.items.length}</span>
+                    {/* Progress */}
+                    {mft.checkedCount > 0 && (
+                      <div className="px-3.5 pl-4.5 mb-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-mono text-[8px] tracking-[0.08em] uppercase text-sand">ITEMS CHECKED</span>
+                          <span className="font-heading text-[10px] font-bold text-cream">{mft.checkedCount}</span>
+                        </div>
+                        <ProgressBar
+                          value={mft.checkedCount}
+                          max={mft.checkedCount}
+                          color={mft.status === 'active' ? 'var(--green)' : mft.status === 'done' ? 'var(--sand)' : 'var(--blue)'}
+                        />
                       </div>
-                      <ProgressBar
-                        value={mft.checkedCount}
-                        max={mft.items.length}
-                        color={mft.status === 'active' ? 'var(--green)' : mft.status === 'done' ? 'var(--sand)' : 'var(--blue)'}
-                      />
-                    </div>
-                  )}
-
-                  {/* Footer */}
-                  <div className="border-t border-border-custom px-3.5 pl-4.5 py-2 flex items-center gap-2.5">
-                    <CrewAvatars crew={mft.crew} />
-                    <span className="font-mono text-[8px] text-sand tracking-wider flex-1">{mft.lastModified}</span>
+                    )}
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="px-5 py-12 text-center">
+              <div className="text-4xl opacity-30 mb-3">⊘</div>
+              <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">NO_MANIFESTS_FOUND</div>
+              <div className="text-xs text-panel2">No manifests match the selected filter.</div>
+            </div>
+          )}
         </div>
 
-        {filtered.length === 0 && (
+        {filtered.length === 0 && manifests.length > 0 && (
           <div className="px-5 py-12 text-center">
             <div className="text-4xl opacity-30 mb-3">⊘</div>
             <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">NO_MANIFESTS_FOUND</div>
