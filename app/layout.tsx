@@ -1,8 +1,10 @@
+"use client";
+
 import type { Metadata } from "next";
 import { Inter, Roboto_Mono, JetBrains_Mono, Inter_Tight } from "next/font/google";
 import AppHeader from "@/components/app-header";
 import BottomNav from "@/components/bottom-nav";
-import SystemProvider from "@/components/providers/SystemProvider";
+import { SystemProvider } from "@/components/providers/SystemProvider";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,10 +31,10 @@ const interTight = Inter_Tight({
   weight: "700",
 });
 
-export const metadata: Metadata = {
-  title: "CONDUIT // Grocery Intelligence System",
-  description: "Grocery intelligence and receipt tracking system",
-};
+// export const metadata: Metadata = {
+//   title: "CONDUIT // Grocery Intelligence System",
+//   description: "Grocery intelligence and receipt tracking system",
+// };
 
 export default function RootLayout({
   children,

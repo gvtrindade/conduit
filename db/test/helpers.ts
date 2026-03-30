@@ -5,7 +5,7 @@ const CONTAINER_NAME = "conduit-test-pg";
 const PG_PORT = 54333;
 const PG_PASSWORD = "test-password";
 const PG_DATABASE = "conduit_test";
-const PG_USER = "postgres";
+const PG_USER = "test_user";
 
 const connectionConfig = {
   host: "localhost",

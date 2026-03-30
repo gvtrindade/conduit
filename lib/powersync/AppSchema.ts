@@ -8,7 +8,7 @@ const categories = new Table(
     is_controlled: column.integer,
     created_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const tags = new Table(
@@ -17,7 +17,7 @@ const tags = new Table(
     is_controlled: column.integer,
     created_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const users = new Table(
@@ -30,7 +30,7 @@ const users = new Table(
     created_at: column.text,
     updated_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const merchants = new Table(
@@ -39,7 +39,7 @@ const merchants = new Table(
     emoji: column.text,
     created_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const items = new Table(
@@ -60,7 +60,7 @@ const items = new Table(
     created_at: column.text,
     updated_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const price_history = new Table(
@@ -70,7 +70,7 @@ const price_history = new Table(
     merchant_id: column.text,
     recorded_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const receipts = new Table(
@@ -85,7 +85,7 @@ const receipts = new Table(
     processed_at: column.text,
     created_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const receipt_items = new Table(
@@ -99,7 +99,7 @@ const receipt_items = new Table(
     category_custom: column.text,
     tags_custom: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const manifests = new Table(
@@ -114,7 +114,7 @@ const manifests = new Table(
     created_at: column.text,
     updated_at: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const manifest_items = new Table(
@@ -127,7 +127,7 @@ const manifest_items = new Table(
     location: column.text,
     is_unknown: column.integer,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
 const manifest_crew = new Table(
@@ -136,10 +136,10 @@ const manifest_crew = new Table(
     user_id: column.text,
     role: column.text,
   },
-  { indexes: {} }
+  { indexes: {} },
 );
 
-export const conduitSchema = new Schema({
+export const AppSchema = new Schema({
   categories,
   tags,
   users,
@@ -152,3 +152,7 @@ export const conduitSchema = new Schema({
   manifest_items,
   manifest_crew,
 });
+
+export type Database = (typeof AppSchema)["types"];
+export type CategoriesRecord = Database["categories"];
+export type ItemsRecord = Database["items"];

@@ -1,15 +1,7 @@
-# Adds YAML Schema support for VSCode users with the YAML extension installed. This enables features like validation and autocompletion based on the provided schema.
-# yaml-language-server: $schema=https://unpkg.com/@powersync/service-sync-rules@latest/schema/sync_rules.json
-
-# See https://docs.powersync.com/sync/advanced/compatibility
 config:
   edition: 3
-
-# Define Sync Streams to control which data is synced to each user
-# Docs: https://docs.powersync.com/sync/streams/overview
 streams:
-  global:
-    # Reference data synced to all users
+  shared_data:
     auto_subscribe: true
     queries:
       - SELECT * FROM categories
@@ -22,4 +14,4 @@ streams:
       - SELECT * FROM manifests
       - SELECT * FROM manifest_items
       - SELECT * FROM manifest_crew
-      - SELECT * FROM users
+      - SELECT * FROM "user"

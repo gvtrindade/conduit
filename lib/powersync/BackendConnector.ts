@@ -1,0 +1,73 @@
+import type {
+  PowerSyncBackendConnector,
+  AbstractPowerSyncDatabase,
+  PowerSyncCredentials,
+} from "@powersync/web";
+
+const ALLOWED_TABLES = new Set(["items"])
+
+export class Connector implements PowerSyncBackendConnector {
+  private backendUrl: string;
+  private powersyncUrl: string;
+  private powersyncToken: string; // This token is for development only
+
+  constructor() {
+    this.backendUrl =
+      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
+    this.powersyncUrl =
+      process.env.NEXT_PUBLIC_POWERSYNC_URL || "http://localhost:8080";
+    this.powersyncToken = process.env.NEXT_PUBLIC_POWERSYNC_TOKEN || "changeme";
+  }
+
+  async fetchCredentials(): Promise<PowerSyncCredentials | null> {
+    return {
+      endpoint: this.powersyncUrl,
+      token: this.powersyncToken,
+    };
+  }
+
+  async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
+    const transaction = await database.getNextCrudTransaction();
+    if (!transaction) return;
+
+    try {
+      const operations = transaction.crud
+        .filter((op) => ALLOWED_TABLES.has(op.table))
+        .map((op) => ({
+          id: op.id,
+          op: op.op,
+          table: op.table,
+          opData: op.opData
+            ? Object.fromEntries(
+                Object.entries(op.opData).map(([k, v]) => [
+                  k,
+                  k === "completed" ? Boolean(v) : v,
+                ]),
+              )
+            : undefined,
+        }));
+
+      if (operations.length > 0) {
+        const res = await fetch(`${this.backendUrl}/api/powersync/upload`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.powersyncToken}`,
+          },
+          body: JSON.stringify({ operations }),
+        });
+
+        if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+
+        const result = await res.json();
+        if (!result.success) {
+          console.warn("Upload had errors:", result.error);
+        }
+      }
+
+      await transaction.complete();
+    } catch (ex) {
+      throw ex;
+    }
+  }
+}

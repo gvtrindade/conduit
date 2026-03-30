@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useSession, signOut } from '@/lib/auth-client';
 import StatusLine from '@/components/status-line';
 import { getPageName, isAuthRoute } from '@/lib/route-config';
+import { useStatus } from '@powersync/react';
 
 export default function AppHeader() {
   const pathname = usePathname();
@@ -11,6 +12,7 @@ export default function AppHeader() {
   const pageName = getPageName(pathname);
   const isAuth = isAuthRoute(pathname);
   const { data: session, isPending } = useSession();
+  const status = useStatus();
 
   const handleSignOut = async () => {
     await signOut();
@@ -26,7 +28,7 @@ export default function AppHeader() {
   return (
     <div className="fixed top-0 left-0 right-0 z-[60]">
       <StatusLine
-        status={session ? "AUTH_OK" : "NO_AUTH"}
+        status={status.connected ? "CONNECTED" : "OFFLINE"}
         pageName={pageName}
         info={`USR: ${userInfo}`}
         action={session ? { label: 'LOGOUT', onClick: handleSignOut } : undefined}

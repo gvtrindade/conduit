@@ -1,28 +1,36 @@
 "use client";
 
-import { useEffect } from "react";
+import { AppSchema } from "@/lib/powersync/AppSchema";
+import { Connector } from "@/lib/powersync/BackendConnector";
 import { PowerSyncContext } from "@powersync/react";
-import { useSession } from "@/lib/auth-client";
-import { db } from "@/lib/powersync";
-import { PowerSyncConnector } from "@/lib/powersync-connector";
-import { resolveConnectionEffect } from "@/lib/powersync-connection";
+import { PowerSyncDatabase, WASQLiteOpenFactory } from "@powersync/web";
+import React, { Suspense } from "react";
 
-const connector = new PowerSyncConnector();
+const factory = new WASQLiteOpenFactory({
+  dbFilename: "powersync.db",
+  worker: "/@powersync/worker/WASQLiteDB.umd.js",
+});
 
-export default function SystemProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { data: session } = useSession();
+export const db = new PowerSyncDatabase({
+  database: factory,
+  schema: AppSchema,
+  flags: {
+    disableSSRWarning: true,
+  },
+  sync: {
+    worker: "/@powersync/worker/SharedSyncImplementation.umd.js",
+  },
+});
 
-  useEffect(() => {
-    resolveConnectionEffect(db, session, connector);
-  }, [session]);
+const connector = new Connector();
+db.connect(connector);
 
+export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   return (
-    <PowerSyncContext.Provider value={db}>
-      {children}
-    </PowerSyncContext.Provider>
+    <Suspense>
+      <PowerSyncContext.Provider value={db}>
+        {children}
+      </PowerSyncContext.Provider>
+    </Suspense>
   );
-}
+};
