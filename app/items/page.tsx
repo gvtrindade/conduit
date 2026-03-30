@@ -2,9 +2,12 @@
 
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
-import { useQuery } from '@powersync/react';
+import { useQuery, usePowerSync } from '@powersync/react';
 import SectionLabel from '@/components/section-label';
 import Toast, { useToast } from '@/components/toast';
+import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
+import ItemForm, { type ItemFormData, type Category, type Tag } from '@/components/item-form';
+import { createItem } from '@/lib/item-mutations';
 import { ITEMS_WITH_JOINS_QUERY, mapDbItemToItem, type DbItemRow } from '@/lib/item-queries';
 import type { Item } from '@/lib/types';
 
@@ -39,9 +42,15 @@ const deltaArrow: Record<string, string> = {
 export default function ItemsPage() {
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState('all');
+  const [showNewItem, setShowNewItem] = useState(false);
   const { toast, showToast, hideToast } = useToast();
+  const powerSync = usePowerSync();
 
   const { data: rawItems, isLoading } = useQuery(ITEMS_WITH_JOINS_QUERY);
+  const { data: categories } = useQuery("SELECT * FROM categories");
+  const { data: tags } = useQuery("SELECT * FROM tags");
+
+  const baseCurrency = "kCr";
 
   const items: Item[] = useMemo(
     () => (rawItems as unknown as DbItemRow[]).map(mapDbItemToItem),
@@ -49,8 +58,9 @@ export default function ItemsPage() {
   );
 
   const filteredItems = items.filter(item => {
+    // TODO: improve search method
     const matchSearch = !search || item.name.toLowerCase().includes(search.toLowerCase()) || item.codename.toLowerCase().includes(search.toLowerCase());
-    const matchCat = activeCat === 'all' || item.category === activeCat;
+    const matchCat = activeCat === 'all' || item.category.toLocaleLowerCase() === activeCat;
     return matchSearch && matchCat;
   });
 
@@ -140,7 +150,7 @@ export default function ItemsPage() {
                         <div className="font-mono text-[8px] font-bold tracking-[0.1em] uppercase text-sand mb-0.5">{item.codename}</div>
                         <div className="text-sm font-semibold text-cream truncate mb-1">{item.name}</div>
                         <div className="flex gap-1 flex-wrap">
-                          {item.tags.map(tag => (
+                          {item.tags?.map((tag: string) => (
                             <span key={tag} className={`font-mono text-[8px] font-bold tracking-wider uppercase px-1.5 py-0.5 rounded-sm border ${
                               tag === 'ORGANIC' || tag === 'DEAL' ? 'text-green border-green/35 bg-green/8' :
                               tag === 'SPIKE' ? 'text-red border-red/35 bg-red/8' :
@@ -158,9 +168,9 @@ export default function ItemsPage() {
                         <span className={`font-heading text-[17px] font-bold block leading-none ${
                           item.alert === 'spike' ? 'text-red' : item.alert === 'drop' ? 'text-green' : item.alert === 'watch' ? 'text-amber' : 'text-cream'
                         }`}>
-                          {item.lastPrice.toFixed(2)}
+                          {item.lastPrice?.toFixed(2)}
                         </span>
-                        <span className="font-mono text-[8px] text-sand block mt-0.5">{item.unit}</span>
+                        <span className="font-mono text-[8px] text-sand block mt-0.5">{baseCurrency} / {item.unit}</span>
                         <span className={`font-mono text-[10px] font-bold block mt-1 ${deltaColors[item.deltaDir]}`}>
                           {deltaArrow[item.deltaDir]} {item.deltaDir === 'flat' ? '+' : ''}{Math.abs(item.delta)}%
                         </span>
@@ -190,12 +200,47 @@ export default function ItemsPage() {
 
       {/* FAB */}
       <button
-        onClick={() => showToast('➕', 'NEW_ITEM // REGISTRATION FORM')}
+        onClick={() => setShowNewItem(true)}
         className="fixed bottom-20 right-5 w-12 h-12 rounded-xl bg-amber border-2 border-[#C07830] flex items-center justify-center text-xl cursor-pointer z-50 text-hull hover:opacity-90 transition-opacity"
         style={{ boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.3), 0 0 20px rgba(217,140,69,0.3)' }}
       >
         ＋
       </button>
+
+      {/* New Item Modal */}
+      <ModalOverlay show={showNewItem} onClose={() => setShowNewItem(false)}>
+        <ModalHeader title="// NEW_ITEM //" onClose={() => setShowNewItem(false)} />
+        <ModalBody>
+          <ItemForm
+            mode="create"
+            categories={categories?.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })) ?? []}
+            tags={tags?.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })) ?? []}
+            onSubmit={async (data: ItemFormData) => {
+              const now = new Date().toISOString();
+              await createItem(powerSync, {
+                name: data.name,
+                codename: data.codename || null,
+                emoji: data.emoji || null,
+                category_id: data.category,
+                category_custom: data.category_custom || null,
+                primary_tag_id: data.primary_tag_id || null,
+                primary_tag_custom: data.primary_tag_custom || null,
+                unit: data.unit || null,
+                last_price: null,
+                last_price_date: null,
+                lowest_price: null,
+                lowest_price_date: null,
+                freq_source_id: null,
+                created_at: now,
+                updated_at: now,
+              });
+              showToast('✦', 'ITEM_CREATED');
+              setShowNewItem(false);
+            }}
+            onCancel={() => setShowNewItem(false)}
+          />
+        </ModalBody>
+      </ModalOverlay>
 
       <Toast icon={toast.icon} message={toast.message} visible={toast.visible} onClose={hideToast} />
     </div>

@@ -2,10 +2,15 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@powersync/react';
+import { useRouter } from 'next/navigation';
+import { useQuery, usePowerSync } from '@powersync/react';
 import TopNav from '@/components/top-nav';
 import DataField from '@/components/data-field';
 import SectionLabel from '@/components/section-label';
+import ItemForm, { type ItemFormData } from '@/components/item-form';
+import Toast, { useToast } from '@/components/toast';
+import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
+import { updateItem, deleteItem, checkItemHasReceipts } from '@/lib/item-mutations';
 import {
   ITEM_DETAIL_QUERY,
   PRICE_HISTORY_QUERY,
@@ -35,11 +40,19 @@ function formatDbDate(dateStr: string | null): string {
 }
 
 export default function ItemDetailClient({ id }: { id: string }) {
+  const router = useRouter();
   const [chartPeriod, setChartPeriod] = useState('6M');
+  const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast, showToast, hideToast } = useToast();
+  const powerSync = usePowerSync();
 
   const { data: rawItem, isLoading: itemLoading } = useQuery(ITEM_DETAIL_QUERY, [id]);
   const { data: rawPriceHistory, isLoading: historyLoading } = useQuery(PRICE_HISTORY_QUERY, [id]);
   const { data: rawReceipts, isLoading: receiptsLoading } = useQuery(ITEM_RECEIPTS_QUERY, [id]);
+  const { data: categories } = useQuery("SELECT * FROM categories");
+  const { data: tags } = useQuery("SELECT * FROM tags");
 
   const isLoading = itemLoading || historyLoading || receiptsLoading;
 
@@ -114,14 +127,84 @@ export default function ItemDetailClient({ id }: { id: string }) {
 
   const fillD = points.length > 0 ? `${pathD} L ${points[points.length - 1].x} 140 L ${points[0].x} 140 Z` : '';
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const hasReceipts = await checkItemHasReceipts(powerSync, id);
+      if (hasReceipts) {
+        const result = await powerSync.execute('SELECT COUNT(*) as count FROM receipt_items WHERE item_id = ?', [id]) as unknown as { rows: { count: number }[] };
+        const count = result.rows[0]?.count ?? 0;
+        showToast('⊘', `CANNOT_DELETE_ITEM_IN_${count}_RECEIPTS`);
+        setShowDeleteConfirm(false);
+        return;
+      }
+      await deleteItem(powerSync, id);
+      router.push('/items');
+    } catch {
+      showToast('⊘', 'DELETE_FAILED');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="relative flex-1 flex flex-col">
       <TopNav
         backHref="/items"
         backLabel="RESOURCE_REGISTRY"
-        title={item.name}
+        title={isEditing ? 'EDIT_ITEM' : item.name}
+        rightAction={
+          !isEditing ? (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-red hover:text-cream transition-colors cursor-pointer"
+              >
+                DELETE
+              </button>
+              <button
+                onClick={() => setIsEditing(true)}
+                className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-amber hover:text-cream transition-colors cursor-pointer"
+              >
+                EDIT
+              </button>
+            </div>
+          ) : undefined
+        }
       />
 
+      {isEditing ? (
+        <div className="flex-1 overflow-y-auto scrollbar-none pb-6 px-5 pt-4">
+          <ItemForm
+            mode="edit"
+            categories={categories?.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })) ?? []}
+            tags={tags?.map((t: { id: string; name: string }) => ({ id: t.id, name: t.name })) ?? []}
+            initialData={{
+              name: item.name,
+              codename: item.codename,
+              emoji: item.emoji,
+              category: item.category,
+              tags: item.tags,
+              unit: item.unit,
+            }}
+            onSubmit={async (data: ItemFormData) => {
+              await updateItem(powerSync, id, {
+                name: data.name,
+                codename: data.codename || null,
+                emoji: data.emoji || null,
+                category_id: data.category || null,
+                category_custom: data.category_custom || null,
+                primary_tag_id: data.primary_tag_id || null,
+                primary_tag_custom: data.primary_tag_custom || null,
+                unit: data.unit || null,
+              });
+              showToast('✦', 'ITEM_UPDATED');
+              setIsEditing(false);
+            }}
+            onCancel={() => setIsEditing(false)}
+          />
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto scrollbar-none pb-6">
         <div className="px-5 py-3 flex gap-4 items-start">
           <div className="w-16 h-16 flex-shrink-0 bg-panel border-2 border-border-custom rounded-lg flex items-center justify-center text-3xl relative overflow-hidden">
@@ -207,7 +290,34 @@ export default function ItemDetailClient({ id }: { id: string }) {
             </div>
           )}
         </div>
-      </div>
+        </div>
+      )}
+      <Toast icon={toast.icon} message={toast.message} visible={toast.visible} onClose={hideToast} />
+      <ModalOverlay show={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)}>
+        <ModalHeader title="CONFIRM_DELETE" onClose={() => setShowDeleteConfirm(false)} titleColor="var(--red)" />
+        <ModalBody>
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">⊗</div>
+            <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-cream mb-2">DELETE_ITEM</div>
+            <div className="font-mono text-[10px] text-sand">This action cannot be undone.</div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border border-border-custom rounded-lg text-sand hover:text-cream hover:border-sand transition-all cursor-pointer"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 bg-red border border-red rounded-lg text-cream hover:bg-red/80 transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isDeleting ? 'DELETING...' : 'DELETE'}
+            </button>
+          </div>
+        </ModalBody>
+      </ModalOverlay>
     </div>
   );
 }

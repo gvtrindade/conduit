@@ -7,9 +7,10 @@ interface TopNavProps {
   backLabel: string;
   title: string;
   onMore?: () => void;
+  rightAction?: React.ReactNode;
 }
 
-export default function TopNav({ backHref, backLabel, title, onMore }: TopNavProps) {
+export default function TopNav({ backHref, backLabel, title, onMore, rightAction }: TopNavProps) {
   return (
     <div className="flex items-center justify-between px-5 py-3 border-b border-border-custom sticky top-0 z-50 bg-hull/95 backdrop-blur-sm">
       <Link
@@ -24,7 +25,9 @@ export default function TopNav({ backHref, backLabel, title, onMore }: TopNavPro
       <span className="font-mono text-[10px] font-bold tracking-[0.12em] uppercase text-cream">
         {title}
       </span>
-      {onMore ? (
+      {rightAction ? (
+        rightAction
+      ) : onMore ? (
         <button
           onClick={onMore}
           className="w-[30px] h-[30px] rounded-md border border-border-custom bg-panel flex items-center justify-center cursor-pointer text-sand text-sm font-mono hover:border-sand hover:text-cream transition-all"

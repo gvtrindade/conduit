@@ -5,3 +5,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- END:nextjs-agent-rules -->
 
 Should any migration need to be changed, do not change it and create a new migration file.
+
+Do not make changes to the /powerasync/docker.
+
+Do not run "bun dev"
