@@ -3,8 +3,7 @@ import type {
   AbstractPowerSyncDatabase,
   PowerSyncCredentials,
 } from "@powersync/web";
-
-const ALLOWED_TABLES = new Set(["items"])
+import { ALLOWED_TABLES } from "./AppSchema";
 
 export class Connector implements PowerSyncBackendConnector {
   private backendUrl: string;
