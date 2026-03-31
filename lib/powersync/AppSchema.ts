@@ -154,7 +154,17 @@ export const AppSchema = new Schema({
 });
 
 export const ALLOWED_TABLES = new Set([
-  "categories, tags, users, merchants, items, price_history, receipts, receipts_items, manifests, manifest_items, manifest_crew",
+  "categories",
+  "tags",
+  "users",
+  "merchants",
+  "items",
+  "price_history",
+  "receipts",
+  "receipts_items",
+  "manifests",
+  "manifest_items",
+  "manifest_crew",
 ]);
 
 export type Database = (typeof AppSchema)["types"];

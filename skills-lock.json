@@ -11,6 +11,11 @@
       "sourceType": "github",
       "computedHash": "76d07c4c0bebc162cc76ca7494bfe7a90e279f35832f7ce6dfc4ce16518fd560"
     },
+    "powersync": {
+      "source": "guillempuche/ai-skill-powersync",
+      "sourceType": "github",
+      "computedHash": "7edb75c4895db0c5248265c8e5d1b3eb8b6c151ff65b99689ddda20ff8f3f49e"
+    },
     "prd-to-issues": {
       "source": "mattpocock/skills",
       "sourceType": "github",
