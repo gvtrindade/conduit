@@ -118,14 +118,13 @@ describe("db types exist", () => {
       id: "uuid",
       receipt_id: "uuid",
       item_id: null,
-      item_name: "Bananas",
       qty: "1.4kg",
       unit_price: 0.63,
       total: 0.89,
       category_custom: "Produce",
       tags_custom: "ORG,SALE",
     };
-    expect(ri.item_name).toBe("Bananas");
+    expect(ri.receipt_id).toBe("uuid");
   });
 
   it("exports ManifestStatus enum", async () => {

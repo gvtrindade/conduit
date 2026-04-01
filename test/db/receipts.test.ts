@@ -142,9 +142,6 @@ describe("receipt_items table", () => {
     expect(columns.item_id.data_type).toBe("uuid");
     expect(columns.item_id.is_nullable).toBe("YES");
 
-    expect(columns.item_name).toBeDefined();
-    expect(columns.item_name.data_type).toBe("text");
-
     expect(columns.qty).toBeDefined();
     expect(columns.qty.data_type).toBe("text");
 

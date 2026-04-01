@@ -14,6 +14,7 @@ export function getPageName(pathname: string): string {
   if (pathname === '/signup') return 'REGISTRATION';
   if (pathname === '/forgot-password') return 'RECOVERY';
   if (pathname === '/reset-password') return 'KEY_RESET';
+  if (pathname === '/logs') return 'RECEIPTS';
   if (pathname.startsWith('/receipts/')) return 'RECEIPT_VIEWER';
   if (pathname.startsWith('/items/')) return 'ITEM_DETAIL';
   if (pathname.startsWith('/manifests/')) return 'MANIFEST_DETAIL';

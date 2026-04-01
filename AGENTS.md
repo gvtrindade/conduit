@@ -8,6 +8,8 @@ Should any migration need to be changed, do not change it and create a new migra
 
 Do not make changes to the /powerasync/docker.
 
-Do not run "bun dev"
+Do not run "bun dev" or "bun --bun next dev" or "bun --bun next start".
 
 This project uses Powersync as the database, all CRUD operations should be done using its pattern.
+
+Do not connect to the database in port 5434 for tests.

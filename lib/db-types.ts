@@ -24,6 +24,7 @@ export interface User {
   rank: string | null;
   role: string | null;
   color: string | null;
+  preferences: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }
@@ -88,7 +89,6 @@ export interface DbReceiptItem {
   id: string;
   receipt_id: string;
   item_id: string | null;
-  item_name: string | null;
   qty: string | null;
   unit_price: number | null;
   total: number | null;

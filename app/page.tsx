@@ -1,29 +1,59 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
 import { useQuery } from '@powersync/react';
+import { usePowerSync } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
 import { RECEIPTS_WITH_MERCHANT_QUERY, mapDbReceiptToReceipt, type DbReceiptRow } from '@/lib/receipt-queries';
 import type { Receipt } from '@/lib/types';
+import { ManualReceiptForm, type Merchant } from '@/components/manual-receipt-form';
+import { type ItemOption } from '@/components/receipt-item-selector';
+import { createMerchant } from '@/lib/merchant-mutations';
+import { createItem } from '@/lib/item-mutations';
+import { createReceipt } from '@/lib/receipt-mutations';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [modalType, setModalType] = useState<string | null>(null);
   const { toast, showToast, hideToast } = useToast();
   const [qrStatus, setQrStatus] = useState('SCANNING');
+  const powerSync = usePowerSync();
 
   const { data: rawReceipts, isLoading } = useQuery(RECEIPTS_WITH_MERCHANT_QUERY);
+  const { data: rawMerchants } = useQuery("SELECT id, name, emoji FROM merchants ORDER BY name");
+  const { data: rawItems } = useQuery("SELECT id, name, unit, last_price FROM items ORDER BY name");
 
   const receipts: Receipt[] = useMemo(
     () => (rawReceipts as unknown as DbReceiptRow[]).map(mapDbReceiptToReceipt),
     [rawReceipts]
   );
 
+  const merchants: Merchant[] = useMemo(
+    () => (rawMerchants ?? []).map((m: { id: string; name: string; emoji: string | null }) => ({
+      id: m.id,
+      name: m.name,
+      emoji: m.emoji,
+    })),
+    [rawMerchants]
+  );
+
+  const items: ItemOption[] = useMemo(
+    () => (rawItems ?? []).map((i: { id: string; name: string; unit: string; last_price: number | null }) => ({
+      id: i.id,
+      name: i.name,
+      unit: i.unit,
+      last_price: i.last_price,
+    })),
+    [rawItems]
+  );
+
   const lastReceipt = receipts[0];
-  const recentReceipts = receipts.slice(1);
+  const recentReceipts = receipts.slice(1, 11);
 
   const statusVariant = (s: string) => {
     if (s === 'OK') return 'green' as const;
@@ -125,32 +155,24 @@ export default function DashboardPage() {
         <div className="px-5 pt-4">
           <div className="flex justify-between items-center mb-3">
             <SectionLabel className="!mb-0 !border-none !pb-0">// RECENT_LOG_ENTRIES //</SectionLabel>
-            <span className="font-mono text-[9px] text-blue cursor-pointer">[ SEE_FULL_LOGS ]</span>
+            <Link href="/logs" className="font-mono text-[9px] text-blue cursor-pointer no-underline hover:underline">[ SEE_FULL_LOGS ]</Link>
           </div>
           {recentReceipts.length > 0 ? (
             <div className="bg-panel border-2 border-border-custom rounded-xl overflow-hidden">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-hull">
-                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">ID</th>
-                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">MERCHANT</th>
-                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">COST</th>
-                    <th className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand text-left px-2.5 py-2 border-b border-border-custom">STATUS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentReceipts.map((r, i) => (
-                    <tr key={r.id} className={i % 2 === 0 ? 'bg-panel' : 'bg-panel2'}>
-                      <td className="font-mono text-[10px] text-sand px-2.5 py-[9px]">{r.id}</td>
-                      <td className="text-xs text-cream px-2.5 py-[9px]">{r.merchant}</td>
-                      <td className="font-heading text-xs font-bold text-cream px-2.5 py-[9px]">{r.total.toFixed(2)}</td>
-                      <td className="px-2.5 py-[9px]">
-                        <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.7fr] px-2.5 py-2 bg-hull border-b border-border-custom gap-2">
+                <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">DATE</span>
+                <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">MERCHANT</span>
+                <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">COST</span>
+                <span className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand">STATUS</span>
+              </div>
+              {recentReceipts.map((r, i) => (
+                <Link key={r.id} href={`/receipts/${r.id}`} className={`no-underline col-span-full grid grid-cols-[1.2fr_1fr_0.8fr_0.7fr] px-2.5 py-[9px] border-b border-border-custom last:border-b-0 gap-2 items-center ${i % 2 === 0 ? 'bg-panel' : 'bg-panel2'} cursor-pointer hover:bg-panel2 transition-colors`}>
+                  <span className="font-mono text-[10px] text-sand">{r.date}</span>
+                  <span className="text-xs text-cream">{r.merchant}</span>
+                  <span className="font-heading text-xs font-bold text-cream">{r.total.toFixed(2)}</span>
+                  <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                </Link>
+              ))}
             </div>
           ) : (
             <div className="bg-panel border-2 border-border-custom rounded-xl p-6 text-center">
@@ -232,43 +254,58 @@ export default function DashboardPage() {
       <ModalOverlay show={modalType === 'manual'} onClose={() => setModalType(null)}>
         <ModalHeader title="MANUAL_ENTRY // RECEIPT" titleColor="var(--amber)" onClose={() => setModalType(null)} />
         <ModalBody>
-          <div className="space-y-3">
-            <div>
-              <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// MERCHANT_ID //</label>
-              <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3.5 py-2.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="SECTOR_7_WHOLE_FOODS" />
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// DATE //</label>
-                <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3.5 py-2.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="2024.10.14" />
-              </div>
-              <div className="flex-1">
-                <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// TOTAL kCr //</label>
-                <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3.5 py-2.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="142.20" />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// ITEMS //</label>
-                <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3.5 py-2.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="12" />
-              </div>
-              <div className="flex-1">
-                <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// CATEGORY //</label>
-                <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3.5 py-2.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="PROVISIONS" />
-              </div>
-            </div>
-            <div>
-              <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// NOTES //</label>
-              <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3.5 py-2.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="Optional mission notes..." />
-            </div>
-            <button
-              onClick={() => { showToast('✓', 'RECEIPT_LOGGED // OK'); setModalType(null); }}
-              className="w-full bg-amber border-2 border-[#C07830] rounded-lg py-3 font-mono text-[11px] font-bold tracking-[0.12em] uppercase text-hull cursor-pointer mt-1 hover:opacity-90 transition-opacity"
-              style={{ boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.3)' }}
-            >
-              [ LOG_RECEIPT_TO_MANIFEST ]
-            </button>
-          </div>
+          <ManualReceiptForm
+            merchants={merchants}
+            items={items}
+            onSubmit={async ({ merchantId, date, items }) => {
+              const total = items.reduce((sum, item) => sum + item.total, 0);
+              const receiptId = await createReceipt(powerSync, {
+                merchant_id: merchantId,
+                receipt_date: date,
+                total,
+                item_count: items.length,
+                status: "OK",
+                savings: null,
+                linked_manifest_id: null,
+                processed_at: null,
+                created_at: new Date().toISOString(),
+                receipt_items: items.map(item => ({
+                  item_id: item.itemId,
+                  qty: item.qty,
+                  unit_price: item.unitPrice,
+                  total: item.total,
+                  category_custom: null,
+                  tags_custom: null,
+                })),
+              });
+              showToast('✓', 'RECEIPT_LOGGED // OK');
+              setModalType(null);
+              router.push(`/receipts/${receiptId}`);
+            }}
+            onCancel={() => setModalType(null)}
+            onCreateMerchant={async (name: string, emoji: string | null) => {
+              return await createMerchant(powerSync, { name, emoji, created_at: null });
+            }}
+            onCreateItem={async (data: { name: string; unit: string }) => {
+              return await createItem(powerSync, {
+                name: data.name,
+                codename: null,
+                emoji: null,
+                category_id: null,
+                category_custom: null,
+                primary_tag_id: null,
+                primary_tag_custom: null,
+                unit: data.unit,
+                last_price: null,
+                last_price_date: null,
+                lowest_price: null,
+                lowest_price_date: null,
+                freq_source_id: null,
+                created_at: null,
+                updated_at: null,
+              });
+            }}
+          />
         </ModalBody>
       </ModalOverlay>
 

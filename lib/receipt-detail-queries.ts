@@ -1,4 +1,5 @@
 import type { Receipt, ReceiptItem } from "./types";
+import { formatDbDate } from "./date";
 
 export const RECEIPT_DETAIL_QUERY = `
   SELECT
@@ -17,14 +18,15 @@ export const RECEIPT_DETAIL_QUERY = `
 
 export const RECEIPT_ITEMS_QUERY = `
   SELECT
-    item_name,
-    qty,
-    unit_price,
-    total,
-    category_custom,
-    tags_custom
+    items.name AS item_name,
+    receipt_items.qty,
+    receipt_items.unit_price,
+    receipt_items.total,
+    receipt_items.category_custom,
+    receipt_items.tags_custom
   FROM receipt_items
-  WHERE receipt_id = ?
+  LEFT JOIN items ON receipt_items.item_id = items.id
+  WHERE receipt_items.receipt_id = ?
 `;
 
 export interface DbReceiptDetailRow {
@@ -45,16 +47,6 @@ export interface DbReceiptItemRow {
   total: number | null;
   category_custom: string | null;
   tags_custom: string | null;
-}
-
-function formatDbDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return dateStr;
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}.${m}.${day}`;
 }
 
 function mapDbStatus(status: string): "OK" | "PND" | "ERR" {

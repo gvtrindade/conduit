@@ -5,6 +5,7 @@ import { useQuery } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ProgressBar from '@/components/progress-bar';
+import PrefillPriceToggle from '@/components/prefill-price-toggle';
 import { useSession } from '@/lib/auth-client';
 import {
   USER_PROFILE_BY_EMAIL_QUERY,
@@ -214,6 +215,7 @@ export default function ProfilePage() {
                 </span>
               </div>
             ))}
+            <PrefillPriceToggle />
           </div>
         </div>
 

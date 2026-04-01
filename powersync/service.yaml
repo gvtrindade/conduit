@@ -31,7 +31,7 @@ client_auth:
       - kty: oct
         alg: HS256
         kid: example-key
-        k: !env PS_CLIENT_AUTH_KEY 
+        k: wZk7NrJn8Hncqla4lRv3HJfiMoapoWvYBllx1TObhDw
   audience: ["powersync-dev", "powersync"]
 
 api:

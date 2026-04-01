@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@powersync/react';
+import { useRouter } from 'next/navigation';
+import { useQuery, usePowerSync } from '@powersync/react';
 import TopNav from '@/components/top-nav';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import DataField from '@/components/data-field';
 import ModalOverlay from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
+import { deleteReceipt } from '@/lib/receipt-mutations';
 import {
   RECEIPT_DETAIL_QUERY,
   RECEIPT_ITEMS_QUERY,
@@ -24,8 +26,11 @@ const tagStyles: Record<string, string> = {
 };
 
 export default function ReceiptDetailClient({ id }: { id: string }) {
+  const router = useRouter();
+  const powerSync = usePowerSync();
   const [showMenu, setShowMenu] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { toast, showToast, hideToast } = useToast();
 
   const { data: rawReceipts, isLoading: receiptLoading } = useQuery(RECEIPT_DETAIL_QUERY, [id]);
@@ -224,10 +229,24 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
           <div className="flex gap-2">
             <button onClick={() => setShowDelete(false)} className="flex-1 bg-transparent border-[1.5px] border-border-custom rounded-lg py-3 font-mono text-[11px] font-bold tracking-[0.08em] uppercase text-sand cursor-pointer hover:border-sand hover:text-cream transition-colors">[ ABORT ]</button>
             <button
-              onClick={() => { setShowDelete(false); showToast('🗑', 'RECEIPT PURGED // LOG UPDATED'); }}
-              className="flex-1 bg-red border-[1.5px] border-[#8A3434] rounded-lg py-3 font-mono text-[11px] font-bold tracking-[0.08em] uppercase text-cream cursor-pointer hover:opacity-90 transition-opacity"
+              onClick={async () => {
+                setIsDeleting(true);
+                try {
+                  await deleteReceipt(powerSync, id);
+                  setShowDelete(false);
+                  showToast('🗑', 'RECEIPT PURGED // LOG UPDATED');
+                  router.push('/');
+                } catch (error) {
+                  console.error('Failed to delete receipt:', error);
+                  showToast('⚠️', 'DELETE FAILED // RETRY');
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+              disabled={isDeleting}
+              className="flex-1 bg-red border-[1.5px] border-[#8A3434] rounded-lg py-3 font-mono text-[11px] font-bold tracking-[0.08em] uppercase text-cream cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-50"
               style={{ boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.3)' }}
-            >[ CONFIRM PURGE ]</button>
+            >[ {isDeleting ? 'PURGING...' : 'CONFIRM PURGE'} ]</button>
           </div>
         </div>
       </ModalOverlay>
