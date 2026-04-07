@@ -9,6 +9,7 @@ export interface AddReceiptItemData {
   itemId: string | null;
   qty: string;
   unitPrice?: number;
+  receiptDate?: string;
 }
 
 export async function addReceiptItem(
@@ -58,11 +59,32 @@ export async function addReceiptItem(
     null,
     null,
   ]);
+
+  if (data.itemId && data.receiptDate && unitPrice !== null) {
+    const item = await db.execute(
+      `SELECT last_price, last_price_date FROM items WHERE id = ?`,
+      [data.itemId]
+    ) as { rows: { last_price: number | null; last_price_date: string | null }[] };
+
+    const existing = item.rows[0];
+    if (!existing) return;
+
+    const shouldUpdate = !existing.last_price_date || 
+      (data.receiptDate > existing.last_price_date);
+
+    if (shouldUpdate) {
+      await db.execute(
+        `UPDATE items SET last_price = ?, last_price_date = ? WHERE id = ?`,
+        [unitPrice, data.receiptDate, data.itemId]
+      );
+    }
+  }
 }
 
 export interface UpdateReceiptItemData {
   qty?: string;
   unitPrice?: number;
+  receiptDate?: string;
 }
 
 export async function updateReceiptItem(
@@ -96,6 +118,34 @@ export async function updateReceiptItem(
 
   const sql = `UPDATE receipt_items SET ${fields.join(", ")} WHERE id = ?`;
   await db.execute(sql, values);
+
+  if (data.receiptDate && data.unitPrice !== undefined) {
+    const receiptItem = await db.execute(
+      `SELECT item_id FROM receipt_items WHERE id = ?`,
+      [id]
+    ) as { rows: { item_id: string | null }[] };
+
+    const itemId = receiptItem.rows[0]?.item_id;
+    if (!itemId) return;
+
+    const item = await db.execute(
+      `SELECT last_price, last_price_date FROM items WHERE id = ?`,
+      [itemId]
+    ) as { rows: { last_price: number | null; last_price_date: string | null }[] };
+
+    const existing = item.rows[0];
+    if (!existing) return;
+
+    const shouldUpdate = !existing.last_price_date || 
+      (data.receiptDate > existing.last_price_date);
+
+    if (shouldUpdate && data.unitPrice !== null) {
+      await db.execute(
+        `UPDATE items SET last_price = ?, last_price_date = ? WHERE id = ?`,
+        [data.unitPrice, data.receiptDate, itemId]
+      );
+    }
+  }
 }
 
 export async function deleteReceiptItem(

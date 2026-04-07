@@ -1,15 +1,16 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { useQuery } from '@powersync/react';
+import { useQuery, usePowerSync } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ProgressBar from '@/components/progress-bar';
 import CrewAvatars from '@/components/crew-avatars';
-import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
 import { MANIFESTS_LIST_QUERY, mapDbManifestToManifestListItem, type DbManifestListRow } from '@/lib/manifest-queries';
+import { createManifest } from '@/lib/manifest-mutations';
 import type { Manifest } from '@/lib/types';
 
 const statusColors: Record<string, { stripe: string; border: string; ring: string }> = {
@@ -20,10 +21,12 @@ const statusColors: Record<string, { stripe: string; border: string; ring: strin
 };
 
 export default function ManifestsPage() {
+  const router = useRouter();
+  const powerSync = usePowerSync();
   const [filter, setFilter] = useState('all');
-  const [showNew, setShowNew] = useState(false);
   const { toast, showToast, hideToast } = useToast();
 
+  const currentValue = "kCr";  
   const { data: rawManifests, isLoading } = useQuery(MANIFESTS_LIST_QUERY);
 
   const manifests: Manifest[] = useMemo(
@@ -88,18 +91,14 @@ export default function ManifestsPage() {
             <span className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand">// ACTIVE_FLEET_STATUS //</span>
             <Badge variant="green">{activeCount} LIVE</Badge>
           </div>
-          <div className="grid grid-cols-4">
+          <div className="grid grid-cols-3">
             <div className="py-2.5 text-center border-r border-border-custom">
               <span className="font-heading text-xl font-bold text-cream block leading-none">{activeCount}</span>
               <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">ACTIVE</span>
             </div>
             <div className="py-2.5 text-center border-r border-border-custom">
               <span className="font-heading text-xl font-bold text-amber block leading-none">{manifests.reduce((s, m) => s + m.estTotal, 0)}</span>
-              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">COMBINED kCr</span>
-            </div>
-            <div className="py-2.5 text-center border-r border-border-custom">
-              <span className="font-heading text-xl font-bold text-cream block leading-none">{manifests.reduce((s, m) => s + m.checkedCount, 0)}</span>
-              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">ITEMS</span>
+              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">COMBINED ESTIMATED {currentValue}</span>
             </div>
             <div className="py-2.5 text-center">
               <span className="font-heading text-xl font-bold text-cream block leading-none">{manifests.length}</span>
@@ -183,65 +182,15 @@ export default function ManifestsPage() {
 
       {/* FAB */}
       <button
-        onClick={() => setShowNew(true)}
+        onClick={async () => {
+          const id = await createManifest(powerSync);
+          router.push(`/manifests/${id}`);
+        }}
         className="fixed bottom-20 right-5 w-[50px] h-[50px] rounded-3xl bg-amber border-2 border-[#C07830] flex items-center justify-center text-2xl cursor-pointer z-50 text-hull hover:opacity-90 transition-opacity"
         style={{ boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.3), 0 0 24px rgba(217,140,69,0.3)' }}
       >
         ＋
       </button>
-
-      {/* New Manifest Modal */}
-      <ModalOverlay show={showNew} onClose={() => setShowNew(false)}>
-        <ModalHeader title="// NEW_MANIFEST //" onClose={() => setShowNew(false)} />
-        <ModalBody>
-          <div className="space-y-3">
-            <div>
-              <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1">// MANIFEST_ID //</label>
-              <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3 py-2 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="WEEK_43_REUP" />
-            </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1">// TARGET_DATE //</label>
-                <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3 py-2 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="2024.10.21" />
-              </div>
-              <div className="flex-1">
-                <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1">// BUDGET kCr //</label>
-                <input className="w-full bg-hull border-[1.5px] border-border-custom rounded-md px-3 py-2 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2" placeholder="300" />
-              </div>
-            </div>
-            <div>
-              <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1.5">// MISSION_TYPE //</label>
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { icon: '🛒', label: 'WEEKLY', selected: true },
-                  { icon: '📦', label: 'BULK', selected: false },
-                  { icon: '🗓️', label: 'MONTHLY', selected: false },
-                  { icon: '⚡', label: 'QUICK', selected: false },
-                  { icon: '🎯', label: 'TARGETED', selected: false },
-                  { icon: '✦', label: 'CUSTOM', selected: false },
-                ].map(type => (
-                  <button
-                    key={type.label}
-                    className={`bg-hull border-[1.5px] rounded-lg py-2.5 text-center cursor-pointer transition-all ${
-                      type.selected ? 'border-amber bg-amber/8' : 'border-border-custom'
-                    }`}
-                  >
-                    <div className="text-lg mb-1">{type.icon}</div>
-                    <div className={`font-mono text-[8px] font-bold tracking-[0.08em] uppercase ${type.selected ? 'text-amber' : 'text-sand'}`}>{type.label}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button
-              onClick={() => { showToast('✦', 'MANIFEST CREATED'); setShowNew(false); }}
-              className="w-full bg-amber border-2 border-[#C07830] rounded-lg py-3 font-mono text-xs font-bold tracking-[0.12em] uppercase text-hull cursor-pointer mt-1 hover:opacity-90 transition-opacity"
-              style={{ boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.3)' }}
-            >
-              [ INITIALIZE_MANIFEST ]
-            </button>
-          </div>
-        </ModalBody>
-      </ModalOverlay>
 
       <Toast icon={toast.icon} message={toast.message} visible={toast.visible} onClose={hideToast} />
 

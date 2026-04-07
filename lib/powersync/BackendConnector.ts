@@ -40,7 +40,7 @@ export class Connector implements PowerSyncBackendConnector {
             ? Object.fromEntries(
                 Object.entries(op.opData).map(([k, v]) => [
                   k,
-                  k === "completed" ? Boolean(v) : v,
+                  ["completed", "checked", "is_unknown"].includes(k) ? Boolean(v) : v,
                 ]),
               )
             : undefined,

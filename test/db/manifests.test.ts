@@ -14,11 +14,10 @@ beforeAll(async () => {
 
   const migrationsDir = resolve(__dirname, "../../migrations");
   for (const file of [
+    "000_better_auth.sql",
     "001_reference_data.sql",
-    "002_users_merchants.sql",
-    "003_items_price_history.sql",
-    "004_receipts.sql",
-    "005_manifests.sql",
+    "002_add_preferences_and_cleanup.sql",
+    "003_manifest_title_nullable_and_type_enum.sql",
   ]) {
     const sql = readFileSync(resolve(migrationsDir, file), "utf-8");
     await client.query(sql);
@@ -53,7 +52,7 @@ describe("manifest_type enum", () => {
        ORDER BY e.enumsortorder`
     );
     const values = result.rows.map((r) => r.enumlabel);
-    expect(values).toEqual(["WEEKLY", "BULK", "MONTHLY", "HEALTH", "SEASONAL"]);
+    expect(values).toEqual(["WEEKLY", "BULK", "MONTHLY", "HEALTH", "SEASONAL", "QUICK", "TARGETED", "CUSTOM"]);
   });
 });
 
@@ -83,7 +82,7 @@ describe("manifests table", () => {
 
     expect(columns.title).toBeDefined();
     expect(columns.title.data_type).toBe("text");
-    expect(columns.title.is_nullable).toBe("NO");
+    expect(columns.title.is_nullable).toBe("YES");
 
     expect(columns.type).toBeDefined();
     expect(columns.type.udt_name).toBe("manifest_type");
@@ -101,7 +100,7 @@ describe("manifests table", () => {
     expect(columns.checked_count.data_type).toBe("integer");
 
     expect(columns.created_by).toBeDefined();
-    expect(columns.created_by.data_type).toBe("uuid");
+    expect(columns.created_by.data_type).toBe("text");
     expect(columns.created_by.is_nullable).toBe("YES");
 
     expect(columns.created_at).toBeDefined();
@@ -225,7 +224,7 @@ describe("manifest_crew table", () => {
     expect(columns.manifest_id.is_nullable).toBe("NO");
 
     expect(columns.user_id).toBeDefined();
-    expect(columns.user_id.data_type).toBe("uuid");
+    expect(columns.user_id.data_type).toBe("text");
     expect(columns.user_id.is_nullable).toBe("NO");
 
     expect(columns.role).toBeDefined();

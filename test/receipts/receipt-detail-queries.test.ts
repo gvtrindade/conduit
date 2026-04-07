@@ -10,16 +10,20 @@ describe("Receipt detail queries", () => {
   it("RECEIPT_DETAIL_QUERY joins merchants and filters by id", () => {
     expect(RECEIPT_DETAIL_QUERY).toContain("JOIN merchants");
     expect(RECEIPT_DETAIL_QUERY).toContain("WHERE receipts.id = ?");
+    expect(RECEIPT_DETAIL_QUERY).toContain("receipts.merchant_id");
   });
 
   it("RECEIPT_ITEMS_QUERY filters by receipt_id", () => {
-    expect(RECEIPT_ITEMS_QUERY).toContain("WHERE receipt_id = ?");
+    expect(RECEIPT_ITEMS_QUERY).toContain("WHERE receipt_items.receipt_id = ?");
+    expect(RECEIPT_ITEMS_QUERY).toContain("receipt_items.id");
+    expect(RECEIPT_ITEMS_QUERY).toContain("receipt_items.item_id");
   });
 
   it("mapDbReceiptDetailToReceipt maps a DB row to UI Receipt type", () => {
     const row = {
       id: "uuid-1",
       merchant_name: "SECTOR_7_WHOLE_FOODS",
+      merchant_id: "mrc-001",
       receipt_date: "2024-10-14",
       total: 142.2,
       item_count: 12,
@@ -32,6 +36,7 @@ describe("Receipt detail queries", () => {
 
     expect(receipt.id).toBe("uuid-1");
     expect(receipt.merchant).toBe("SECTOR_7_WHOLE_FOODS");
+    expect(receipt.merchantId).toBe("mrc-001");
     expect(receipt.total).toBe(142.2);
     expect(receipt.itemCount).toBe(12);
     expect(receipt.status).toBe("OK");
@@ -43,6 +48,7 @@ describe("Receipt detail queries", () => {
     const row = {
       id: "1",
       merchant_name: "TEST",
+      merchant_id: "mrc-099",
       receipt_date: "2024-10-14T00:00:00Z",
       total: 100,
       item_count: 5,
@@ -59,6 +65,7 @@ describe("Receipt detail queries", () => {
     const row = {
       id: "1",
       merchant_name: null,
+      merchant_id: null,
       receipt_date: null,
       total: null,
       item_count: null,
@@ -69,6 +76,7 @@ describe("Receipt detail queries", () => {
 
     const receipt = mapDbReceiptDetailToReceipt(row);
     expect(receipt.merchant).toBe("UNKNOWN");
+    expect(receipt.merchantId).toBeNull();
     expect(receipt.total).toBe(0);
     expect(receipt.itemCount).toBe(0);
     expect(receipt.savings).toBeUndefined();
@@ -77,6 +85,8 @@ describe("Receipt detail queries", () => {
 
   it("mapDbReceiptItemToReceiptItem maps a DB row to UI ReceiptItem type", () => {
     const row = {
+      id: "ri-001",
+      item_id: "itm-002",
       item_name: "Bananas",
       qty: "1.4kg",
       unit_price: 0.63,
@@ -87,6 +97,8 @@ describe("Receipt detail queries", () => {
 
     const item = mapDbReceiptItemToReceiptItem(row);
 
+    expect(item.id).toBe("ri-001");
+    expect(item.itemId).toBe("itm-002");
     expect(item.name).toBe("Bananas");
     expect(item.qty).toBe("1.4kg");
     expect(item.unitPrice).toBe(0.63);
@@ -97,6 +109,8 @@ describe("Receipt detail queries", () => {
 
   it("mapDbReceiptItemToReceiptItem handles null values", () => {
     const row = {
+      id: null,
+      item_id: null,
       item_name: null,
       qty: null,
       unit_price: null,
@@ -106,6 +120,8 @@ describe("Receipt detail queries", () => {
     };
 
     const item = mapDbReceiptItemToReceiptItem(row);
+    expect(item.id).toBeNull();
+    expect(item.itemId).toBeNull();
     expect(item.name).toBe("Unknown Item");
     expect(item.qty).toBe("");
     expect(item.unitPrice).toBe(0);
@@ -116,6 +132,8 @@ describe("Receipt detail queries", () => {
 
   it("mapDbReceiptItemToReceiptItem handles empty tags string", () => {
     const row = {
+      id: "ri-003",
+      item_id: "itm-004",
       item_name: "Test",
       qty: "1",
       unit_price: 5.0,

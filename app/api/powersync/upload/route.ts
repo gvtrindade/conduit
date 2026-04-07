@@ -6,6 +6,26 @@ function isValidName(name: unknown): name is string {
   return typeof name === "string" && name.trim().length > 0;
 }
 
+const VALID_MANIFEST_TYPES = [
+  "WEEKLY", "BULK", "MONTHLY", "HEALTH", "SEASONAL", "QUICK", "TARGETED", "CUSTOM",
+] as const;
+
+function isValidManifestType(type: unknown): type is string {
+  return typeof type === "string" && VALID_MANIFEST_TYPES.includes(type as typeof VALID_MANIFEST_TYPES[number]);
+}
+
+const VALID_MANIFEST_STATUSES = ["DRAFT", "ACTIVE", "DONE", "ARCHIVED"] as const;
+
+function isValidManifestStatus(status: unknown): status is string {
+  return typeof status === "string" && VALID_MANIFEST_STATUSES.includes(status as typeof VALID_MANIFEST_STATUSES[number]);
+}
+
+const ALLOWED_STATUS_TRANSITIONS: Record<string, string> = {
+  DRAFT: "ACTIVE",
+  ACTIVE: "DONE",
+  DONE: "ARCHIVED",
+};
+
 // Validate foreign key fields exist in database
 async function isValidForeignKey(
   tableName: string,
@@ -14,6 +34,16 @@ async function isValidForeignKey(
   if (!value) return true;
   const result = await db.query(`SELECT 1 FROM ${tableName} WHERE id = $1`, [value]);
   return result.rowCount !== null && result.rowCount > 0;
+}
+
+async function recalculateEstTotal(manifestId: string): Promise<void> {
+  await db.query(
+    `UPDATE manifests SET est_total = (
+      SELECT COALESCE(SUM(COALESCE(prev_price, 0)), 0)
+      FROM manifest_items WHERE manifest_id = $1
+    ) WHERE id = $1`,
+    [manifestId],
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -615,6 +645,225 @@ export async function POST(request: NextRequest) {
       }
 
       await db.query("DELETE FROM merchants WHERE id = $1", [id]);
+
+      processed++;
+    }
+
+    if (operation.op === "PUT" && operation.table === "manifests") {
+      const { id, opData } = operation;
+
+      let createdAt = opData?.created_at;
+      if (!createdAt) {
+        createdAt = new Date().toISOString();
+      }
+
+      await db.query(
+        `INSERT INTO manifests (id, title, type, status, est_total, confidence, checked_count, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE SET
+           title = EXCLUDED.title,
+           type = EXCLUDED.type,
+           status = EXCLUDED.status,
+           est_total = EXCLUDED.est_total,
+           confidence = EXCLUDED.confidence,
+           checked_count = EXCLUDED.checked_count,
+           updated_at = EXCLUDED.updated_at`,
+        [
+          id,
+          opData?.title ?? null,
+          opData?.type ?? null,
+          opData?.status ?? "DRAFT",
+          opData?.est_total ?? null,
+          opData?.confidence ?? null,
+          opData?.checked_count ?? null,
+          opData?.created_by ?? null,
+          createdAt,
+          createdAt,
+        ],
+      );
+
+      processed++;
+    }
+
+    if (operation.op === "PATCH" && operation.table === "manifests") {
+      const { id, opData } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      // Guard: Validate type is a valid manifest type if provided
+      if (opData.type !== undefined && !isValidManifestType(opData.type)) {
+        return NextResponse.json(
+          { error: "type", message: `type must be one of: ${VALID_MANIFEST_TYPES.join(", ")}` },
+          { status: 400 },
+        );
+      }
+
+      // Guard: Validate title is string or null if provided
+      if (opData.title !== undefined && opData.title !== null && typeof opData.title !== "string") {
+        return NextResponse.json(
+          { error: "title", message: "title must be a string or null" },
+          { status: 400 },
+        );
+      }
+
+      // Guard: Validate status transition if status is being changed
+      if (opData.status !== undefined) {
+        if (!isValidManifestStatus(opData.status)) {
+          return NextResponse.json(
+            { error: "status", message: `status must be one of: ${VALID_MANIFEST_STATUSES.join(", ")}` },
+            { status: 400 },
+          );
+        }
+
+        const existing = await db.query("SELECT status FROM manifests WHERE id = $1", [id]);
+        if (existing.rowCount === null || existing.rowCount === 0) {
+          return NextResponse.json(
+            { error: "manifest", message: "Manifest does not exist" },
+            { status: 400 },
+          );
+        }
+
+        const currentStatus = existing.rows[0].status;
+        const expectedNext = ALLOWED_STATUS_TRANSITIONS[currentStatus];
+        if (!expectedNext || opData.status !== expectedNext) {
+          return NextResponse.json(
+            {
+              error: "status",
+              message: `Invalid status transition: cannot go from ${currentStatus} to ${opData.status}`,
+            },
+            { status: 400 },
+          );
+        }
+      }
+
+      const fields = Object.keys(opData);
+      if (fields.length === 0) {
+        continue;
+      }
+
+      const setClauses = fields.map((field, index) => {
+        return `${field} = $${index + 2}`;
+      });
+
+      const query = `UPDATE manifests SET ${setClauses.join(", ")} WHERE id = $1`;
+      const values = [id, ...fields.map((field) => opData[field])];
+
+      await db.query(query, values);
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "manifests") {
+      const { id } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      await db.query("DELETE FROM manifests WHERE id = $1", [id]);
+
+      processed++;
+    }
+
+    if (operation.op === "PUT" && operation.table === "manifest_items") {
+      const { id, opData } = operation;
+
+      // Guard: Validate manifest_id FK
+      const manifestId = opData?.manifest_id;
+      if (!manifestId) {
+        return NextResponse.json(
+          { error: "manifest_id", message: "manifest_id is required" },
+          { status: 400 },
+        );
+      }
+      if (!(await isValidForeignKey("manifests", manifestId))) {
+        return NextResponse.json(
+          { error: "manifest_id", message: "manifest_id does not exist" },
+          { status: 400 },
+        );
+      }
+
+      // Guard: Validate item_id FK if provided
+      const itemId = opData?.item_id;
+      if (itemId && !(await isValidForeignKey("items", itemId))) {
+        return NextResponse.json(
+          { error: "item_id", message: "item_id does not exist" },
+          { status: 400 },
+        );
+      }
+
+      await db.query(
+        `INSERT INTO manifest_items (id, manifest_id, item_id, item_name, checked, prev_price, location, is_unknown)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           manifest_id = EXCLUDED.manifest_id,
+           item_id = EXCLUDED.item_id,
+           item_name = EXCLUDED.item_name,
+           checked = EXCLUDED.checked,
+           prev_price = EXCLUDED.prev_price,
+           location = EXCLUDED.location,
+           is_unknown = EXCLUDED.is_unknown`,
+        [
+          id,
+          manifestId,
+          itemId ?? null,
+          opData?.item_name ?? null,
+          opData?.checked ?? false,
+          opData?.prev_price ?? null,
+          opData?.location ?? null,
+          opData?.is_unknown ?? false,
+        ],
+      );
+
+      await recalculateEstTotal(manifestId);
+
+      processed++;
+    }
+
+    if (operation.op === "PATCH" && operation.table === "manifest_items") {
+      const { id, opData } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      const fields = Object.keys(opData);
+      if (fields.length === 0) {
+        continue;
+      }
+
+      const setClauses = fields.map((field, index) => {
+        return `${field} = $${index + 2}`;
+      });
+
+      const query = `UPDATE manifest_items SET ${setClauses.join(", ")} WHERE id = $1`;
+      const values = [id, ...fields.map((field) => opData[field])];
+
+      await db.query(query, values);
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "manifest_items") {
+      const { id } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      const itemResult = await db.query(
+        "SELECT manifest_id FROM manifest_items WHERE id = $1",
+        [id],
+      );
+      const itemManifestId = itemResult.rows[0]?.manifest_id;
+
+      await db.query("DELETE FROM manifest_items WHERE id = $1", [id]);
+
+      if (itemManifestId) {
+        await recalculateEstTotal(itemManifestId);
+      }
 
       processed++;
     }

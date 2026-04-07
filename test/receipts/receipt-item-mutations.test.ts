@@ -91,9 +91,206 @@ describe("addReceiptItem", () => {
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
   });
+
+  it("updates items.last_price when receipt date is newer than existing last_price_date", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("last_price")) {
+        return Promise.resolve({ rows: [{ last_price: 100, last_price_date: "2024-01-01" }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { addReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await addReceiptItem(mockDb, {
+      receiptId: "rcpt-1",
+      itemId: "item-42",
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(1);
+    expect(updateCalls[0].params).toContain(150);
+    expect(updateCalls[0].params).toContain("2024-06-01");
+  });
+
+  it("does NOT update items.last_price when receipt date is older than last_price_date", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("last_price")) {
+        return Promise.resolve({ rows: [{ last_price: 100, last_price_date: "2024-12-01" }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { addReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await addReceiptItem(mockDb, {
+      receiptId: "rcpt-1",
+      itemId: "item-42",
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(0);
+  });
+
+  it("does NOT update items.last_price for custom items without item_id", async () => {
+    const mockExecute = mock(() => Promise.resolve({ rows: [] }));
+    const mockDb = { execute: mockExecute } as any;
+
+    const { addReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await addReceiptItem(mockDb, {
+      receiptId: "rcpt-1",
+      itemId: null,
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    expect(mockExecute).toHaveBeenCalledTimes(1);
+  });
+
+  it("updates items.last_price when last_price_date is null", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("last_price")) {
+        return Promise.resolve({ rows: [{ last_price: 100, last_price_date: null }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { addReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await addReceiptItem(mockDb, {
+      receiptId: "rcpt-1",
+      itemId: "item-42",
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(1);
+  });
 });
 
 describe("updateReceiptItem", () => {
+  it("updates items.last_price when receipt date is newer than existing last_price_date", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("receipt_items")) {
+        return Promise.resolve({ rows: [{ item_id: "item-42" }] });
+      }
+      if (sql.includes("SELECT") && sql.includes("items")) {
+        return Promise.resolve({ rows: [{ last_price: 100, last_price_date: "2024-01-01" }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { updateReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await updateReceiptItem(mockDb, "row-1", {
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(1);
+    expect(updateCalls[0].params).toContain(150);
+    expect(updateCalls[0].params).toContain("2024-06-01");
+  });
+
+  it("does NOT update items.last_price when receipt date is older than last_price_date", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("receipt_items")) {
+        return Promise.resolve({ rows: [{ item_id: "item-42" }] });
+      }
+      if (sql.includes("SELECT") && sql.includes("items")) {
+        return Promise.resolve({ rows: [{ last_price: 100, last_price_date: "2024-12-01" }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { updateReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await updateReceiptItem(mockDb, "row-1", {
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(0);
+  });
+
+  it("does NOT update items.last_price for custom items without item_id", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("receipt_items")) {
+        return Promise.resolve({ rows: [{ item_id: null }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { updateReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await updateReceiptItem(mockDb, "row-1", {
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(0);
+  });
+
+  it("updates items.last_price when last_price_date is null", async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const mockExecute = mock((sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.includes("SELECT") && sql.includes("receipt_items")) {
+        return Promise.resolve({ rows: [{ item_id: "item-42" }] });
+      }
+      if (sql.includes("SELECT") && sql.includes("items")) {
+        return Promise.resolve({ rows: [{ last_price: 100, last_price_date: null }] });
+      }
+      return Promise.resolve({ rows: [] });
+    });
+    const mockDb = { execute: mockExecute } as any;
+
+    const { updateReceiptItem } = await import("@/lib/receipt-item-mutations");
+
+    await updateReceiptItem(mockDb, "row-1", {
+      qty: "2",
+      unitPrice: 150,
+      receiptDate: "2024-06-01",
+    });
+
+    const updateCalls = calls.filter(c => c.sql.includes("UPDATE items"));
+    expect(updateCalls.length).toBe(1);
+  });
+
   it("updates qty field", async () => {
     const mockExecute = mock(() => Promise.resolve({ rows: [] }));
     const mockDb = { execute: mockExecute } as any;

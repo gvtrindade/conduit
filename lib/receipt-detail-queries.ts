@@ -5,6 +5,7 @@ export const RECEIPT_DETAIL_QUERY = `
   SELECT
     receipts.id,
     merchants.name AS merchant_name,
+    receipts.merchant_id,
     receipts.receipt_date,
     receipts.total,
     receipts.item_count,
@@ -18,6 +19,8 @@ export const RECEIPT_DETAIL_QUERY = `
 
 export const RECEIPT_ITEMS_QUERY = `
   SELECT
+    receipt_items.id,
+    receipt_items.item_id,
     items.name AS item_name,
     receipt_items.qty,
     receipt_items.unit_price,
@@ -32,6 +35,7 @@ export const RECEIPT_ITEMS_QUERY = `
 export interface DbReceiptDetailRow {
   id: string;
   merchant_name: string | null;
+  merchant_id: string | null;
   receipt_date: string | null;
   total: number | null;
   item_count: number | null;
@@ -41,6 +45,8 @@ export interface DbReceiptDetailRow {
 }
 
 export interface DbReceiptItemRow {
+  id: string | null;
+  item_id: string | null;
   item_name: string | null;
   qty: string | null;
   unit_price: number | null;
@@ -62,6 +68,7 @@ export function mapDbReceiptDetailToReceipt(
   return {
     id: row.id,
     merchant: row.merchant_name || "UNKNOWN",
+    merchantId: row.merchant_id || null,
     date: formatDbDate(row.receipt_date),
     total: Number(row.total) || 0,
     itemCount: Number(row.item_count) || 0,
@@ -79,6 +86,8 @@ export function mapDbReceiptItemToReceiptItem(
   const tags = tagsStr ? tagsStr.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
   return {
+    id: row.id || null,
+    itemId: row.item_id || null,
     name: row.item_name || "Unknown Item",
     qty: row.qty || "",
     unitPrice: Number(row.unit_price) || 0,

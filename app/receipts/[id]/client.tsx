@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, usePowerSync } from '@powersync/react';
 import TopNav from '@/components/top-nav';
@@ -9,7 +9,12 @@ import SectionLabel from '@/components/section-label';
 import DataField from '@/components/data-field';
 import ModalOverlay from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
-import { deleteReceipt } from '@/lib/receipt-mutations';
+import { ReceiptEditForm } from '@/components/receipt-edit-form';
+import { deleteReceipt, updateReceipt } from '@/lib/receipt-mutations';
+import { deleteReceiptItem, updateReceiptItem, addReceiptItem } from '@/lib/receipt-item-mutations';
+import { createMerchant } from '@/lib/merchant-mutations';
+import { createItem } from '@/lib/item-mutations';
+import { saveReceiptEdits } from '@/lib/receipt-edit-helpers';
 import {
   RECEIPT_DETAIL_QUERY,
   RECEIPT_ITEMS_QUERY,
@@ -31,12 +36,25 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
   const [showMenu, setShowMenu] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const { toast, showToast, hideToast } = useToast();
 
   const { data: rawReceipts, isLoading: receiptLoading } = useQuery(RECEIPT_DETAIL_QUERY, [id]);
   const { data: rawItems, isLoading: itemsLoading } = useQuery(RECEIPT_ITEMS_QUERY, [id]);
+  const { data: rawMerchants } = useQuery("SELECT id, name, emoji FROM merchants ORDER BY name");
+  const { data: rawCatalogItems } = useQuery("SELECT id, name, unit, last_price FROM items ORDER BY name");
 
   const isLoading = receiptLoading || itemsLoading;
+
+  const merchants = useMemo(() => {
+    if (!rawMerchants) return [];
+    return (rawMerchants as Array<{ id: string; name: string; emoji: string | null }>);
+  }, [rawMerchants]);
+
+  const catalogItems = useMemo(() => {
+    if (!rawCatalogItems) return [];
+    return (rawCatalogItems as Array<{ id: string; name: string; unit: string; last_price: number | null }>);
+  }, [rawCatalogItems]);
 
   const receipt = useMemo(() => {
     const rows = rawReceipts as unknown as DbReceiptDetailRow[];
@@ -44,6 +62,16 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
     const items = (rawItems as unknown as DbReceiptItemRow[] || []).map(mapDbReceiptItemToReceiptItem);
     return mapDbReceiptDetailToReceipt(rows[0], items);
   }, [rawReceipts, rawItems]);
+
+  const handleEditData = useCallback(() => {
+    setShowMenu(false);
+    if (!receipt) return;
+    if (receipt.status !== 'OK') {
+      showToast('🚫', `CANNOT_EDIT — STATUS: ${receipt.status}`);
+      return;
+    }
+    setIsEditing(true);
+  }, [receipt, showToast]);
 
   if (isLoading) {
     return (
@@ -80,7 +108,14 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
           ].map(item => (
             <div
               key={item.label}
-              onClick={() => { setShowMenu(false); showToast(item.icon, item.label.toUpperCase()); }}
+              onClick={() => {
+                if (item.label === 'Edit Data') {
+                  handleEditData();
+                } else {
+                  setShowMenu(false);
+                  showToast(item.icon, item.label.toUpperCase());
+                }
+              }}
               className="flex items-center gap-2.5 px-4 py-2.5 font-mono text-[10px] font-bold tracking-[0.08em] uppercase text-sand cursor-pointer border-b border-border-custom last:border-b-0 hover:bg-panel2 hover:text-cream transition-colors"
             >
               <span className="text-xs">{item.icon}</span> {item.label}
@@ -98,11 +133,85 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
       <TopNav
         backHref="/"
         backLabel="RCPT_LOG"
-        title={`RECEIPT #${receipt.id}`}
-        onMore={() => setShowMenu(!showMenu)}
+        title={isEditing ? `EDIT RECEIPT #${receipt.id}` : `RECEIPT #${receipt.id}`}
+        onMore={isEditing ? undefined : () => setShowMenu(!showMenu)}
       />
 
-      <div className="flex-1 overflow-y-auto scrollbar-none pb-7">
+      {isEditing ? (
+        <div className="flex-1 overflow-y-auto scrollbar-none pb-7 px-5 pt-4">
+          <ReceiptEditForm
+            receipt={{
+              merchantId: receipt.merchantId ?? '',
+              date: receipt.date,
+              items: receipt.items.map(item => ({
+                receiptItemId: item.id ?? '',
+                itemId: item.itemId ?? '',
+                name: item.name,
+                qty: item.qty,
+                unitPrice: item.unitPrice,
+                total: item.total,
+              })),
+            }}
+            merchants={merchants}
+            items={catalogItems}
+            onSubmit={async (data) => {
+              try {
+                const total = data.items.reduce((sum, i) => sum + i.total, 0);
+                const itemCount = data.items.length;
+
+                await saveReceiptEdits(powerSync, {
+                  receiptId: id,
+                  merchantId: data.merchantId,
+                  date: data.date,
+                  total,
+                  itemCount,
+                  originalItems: receipt.items.map(item => ({
+                    receiptItemId: item.id ?? '',
+                    qty: item.qty,
+                    unitPrice: item.unitPrice,
+                  })),
+                  submittedItems: data.items.map(item => ({
+                    receiptItemId: item.receiptItemId,
+                    itemId: item.itemId,
+                    qty: item.qty,
+                    unitPrice: item.unitPrice,
+                  })),
+                }, { updateReceipt, deleteReceiptItem, updateReceiptItem, addReceiptItem });
+
+                showToast('✦', 'RECEIPT_UPDATED');
+                setIsEditing(false);
+              } catch (error) {
+                console.error('Failed to save receipt edits:', error);
+                showToast('⚠️', 'SAVE_FAILED // RETRY');
+              }
+            }}
+            onCancel={() => setIsEditing(false)}
+            onCreateMerchant={async (name, emoji) => {
+              return await createMerchant(powerSync, { name, emoji, created_at: null });
+            }}
+            onCreateItem={async (data) => {
+              return await createItem(powerSync, {
+                name: data.name,
+                codename: null,
+                emoji: null,
+                category_id: null,
+                category_custom: null,
+                primary_tag_id: null,
+                primary_tag_custom: null,
+                unit: data.unit,
+                last_price: null,
+                last_price_date: null,
+                lowest_price: null,
+                lowest_price_date: null,
+                freq_source_id: null,
+                created_at: null,
+                updated_at: null,
+              });
+            }}
+          />
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto scrollbar-none pb-7">
         <div className="px-5 pt-5">
           <div className="bg-panel border-2 border-border-custom rounded-2xl overflow-hidden relative">
             <div className="absolute right-4 top-1/2 -translate-y-1/2 font-tight text-5xl font-bold text-cream/[0.03] uppercase pointer-events-none select-none">
@@ -215,7 +324,8 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
             <span className="font-mono text-[11px] font-bold tracking-[0.1em] uppercase text-red">[ PURGE_RECEIPT_LOG ]</span>
           </button>
         </div>
-      </div>
+        </div>
+      )}
 
       <ModalOverlay show={showDelete} onClose={() => setShowDelete(false)}>
         <div className="bg-hull px-5 py-3.5 border-b border-border-custom flex items-center gap-2.5">

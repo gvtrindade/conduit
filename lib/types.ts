@@ -1,4 +1,6 @@
 export interface ReceiptItem {
+  id: string | null;
+  itemId: string | null;
   name: string;
   qty: string;
   unitPrice: number;
@@ -10,6 +12,7 @@ export interface ReceiptItem {
 export interface Receipt {
   id: string;
   merchant: string;
+  merchantId: string | null;
   date: string;
   total: number;
   itemCount: number;
@@ -44,6 +47,8 @@ export interface Item {
 }
 
 export interface ManifestItem {
+  id: string;
+  itemId: string | null;
   name: string;
   checked: boolean;
   prevPrice: number | null;

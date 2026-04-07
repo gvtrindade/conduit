@@ -10,4 +10,9 @@ describe("ALLOWED_TABLES", () => {
   it("contains receipts", () => {
     expect(ALLOWED_TABLES.has("receipts")).toBe(true);
   });
+
+  it("contains manifests and manifest_items", () => {
+    expect(ALLOWED_TABLES.has("manifests")).toBe(true);
+    expect(ALLOWED_TABLES.has("manifest_items")).toBe(true);
+  });
 });

@@ -89,13 +89,24 @@ describe("Manifest queries", () => {
     expect(mft.crew).toEqual([]);
   });
 
+  it("mapDbManifestToManifestListItem handles null title", () => {
+    const row = {
+      id: "1", title: null, type: null, status: "DRAFT",
+      est_total: null, confidence: null, checked_count: null,
+      created_at: null, updated_at: null, item_count: 0, crew_count: 0,
+    };
+
+    const mft = mapDbManifestToManifestListItem(row);
+    expect(mft.title).toBe("");
+  });
+
   it("mapDbManifestDetailToManifest maps a DB row with items and crew", () => {
     const row = {
       id: "mft-042", title: "WEEK_42_REUP", type: "WEEKLY", status: "ACTIVE",
       est_total: 312, confidence: "±7%", checked_count: 3, created_by: null,
       created_at: "2024-10-14T14:31:00Z", updated_at: "2024-10-14T14:31:00Z",
     };
-    const items = [{ name: "Eggs", checked: true, prevPrice: 4.5, location: null, unknown: false }];
+    const items = [{ id: "mi-test-1", name: "Eggs", checked: true, prevPrice: 4.5, location: null, unknown: false }];
     const crew = [{ initials: "CP", name: "CAPT_PROVISIONS", role: "SECTOR_7 // HQ", color: "#4A3828", badge: "COMMANDER" }];
 
     const mft = mapDbManifestDetailToManifest(row, items, crew);
@@ -105,6 +116,17 @@ describe("Manifest queries", () => {
     expect(mft.crew).toHaveLength(1);
     expect(mft.items[0].name).toBe("Eggs");
     expect(mft.crew[0].initials).toBe("CP");
+  });
+
+  it("mapDbManifestDetailToManifest handles null title", () => {
+    const row = {
+      id: "mft-043", title: null, type: null, status: "DRAFT",
+      est_total: null, confidence: null, checked_count: null, created_by: null,
+      created_at: null, updated_at: null,
+    };
+
+    const mft = mapDbManifestDetailToManifest(row);
+    expect(mft.title).toBe("");
   });
 
   it("mapDbManifestItemToManifestItem maps a DB row", () => {

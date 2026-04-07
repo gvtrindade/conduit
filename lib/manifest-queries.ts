@@ -68,7 +68,7 @@ export const MANIFEST_CREW_QUERY = `
 
 export interface DbManifestListRow {
   id: string;
-  title: string;
+  title: string | null;
   type: string | null;
   status: string;
   est_total: number | null;
@@ -82,7 +82,7 @@ export interface DbManifestListRow {
 
 export interface DbManifestDetailRow {
   id: string;
-  title: string;
+  title: string | null;
   type: string | null;
   status: string;
   est_total: number | null;
@@ -125,7 +125,7 @@ export function mapDbManifestToManifestListItem(
 ): Manifest {
   return {
     id: row.id,
-    title: row.title,
+    title: row.title || "",
     type: row.type || "",
     status: mapStatus(row.status),
     estTotal: Number(row.est_total) || 0,
@@ -144,7 +144,7 @@ export function mapDbManifestDetailToManifest(
 ): Manifest {
   return {
     id: row.id,
-    title: row.title,
+    title: row.title || "",
     type: row.type || "",
     status: mapStatus(row.status),
     estTotal: Number(row.est_total) || 0,
@@ -160,6 +160,8 @@ export function mapDbManifestItemToManifestItem(
   row: DbManifestItemRow
 ): ManifestItem {
   return {
+    id: row.id,
+    itemId: row.item_id || null,
     name: row.item_name || "Unknown Item",
     checked: row.checked === 1,
     prevPrice: row.prev_price != null ? Number(row.prev_price) : null,

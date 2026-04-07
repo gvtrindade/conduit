@@ -111,13 +111,16 @@ export const ManifestType = {
   MONTHLY: "MONTHLY",
   HEALTH: "HEALTH",
   SEASONAL: "SEASONAL",
+  QUICK: "QUICK",
+  TARGETED: "TARGETED",
+  CUSTOM: "CUSTOM",
 } as const;
 
 export type ManifestType = (typeof ManifestType)[keyof typeof ManifestType];
 
 export interface DbManifest {
   id: string;
-  title: string;
+  title: string | null;
   type: ManifestType | null;
   status: ManifestStatus;
   est_total: number | null;
