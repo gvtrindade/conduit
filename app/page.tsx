@@ -78,43 +78,6 @@ export default function DashboardPage() {
   return (
     <div className="relative flex-1 flex flex-col">
       <div className="flex-1 overflow-y-auto scrollbar-none">
-        {/* Register Receipt Block */}
-        <div className="px-5 py-3.5 border-b border-border-custom">
-          <div className="flex items-center justify-between mb-2.5">
-            <span className="font-mono text-[9px] font-bold tracking-[0.18em] uppercase text-sand">
-              // LOG_NEW_RECEIPT //
-            </span>
-            <span className="font-mono text-[8px] font-bold tracking-[0.1em] uppercase text-blue bg-blue/10 border border-blue/30 px-2 py-0.5 rounded-sm">
-              + REGISTER
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={() => setModalType('qr')}
-              className="bg-panel border border-blue/35 rounded-xl py-3.5 px-2 flex flex-col items-center gap-2 cursor-pointer text-blue hover:border-blue hover:bg-blue/8 transition-all relative overflow-hidden"
-            >
-              <span className="text-xl leading-none relative z-10">▦</span>
-              <span className="font-mono text-[9px] font-bold tracking-[0.1em] uppercase leading-tight text-center relative z-10">QR<br/>CODE</span>
-              <span className="font-mono text-[8px] tracking-wider text-sand text-center relative z-10">Read<br/>ticket</span>
-            </button>
-            <button
-              onClick={() => setModalType('scan')}
-              className="bg-panel border border-green/35 rounded-xl py-3.5 px-2 flex flex-col items-center gap-2 cursor-pointer text-green hover:border-green hover:bg-green/7 transition-all relative overflow-hidden"
-            >
-              <span className="text-xl leading-none relative z-10">⬚</span>
-              <span className="font-mono text-[9px] font-bold tracking-[0.1em] uppercase leading-tight text-center relative z-10">SCAN<br/>RCPT</span>
-              <span className="font-mono text-[8px] tracking-wider text-sand text-center relative z-10">Camera<br/>capture</span>
-            </button>
-            <button
-              onClick={() => setModalType('manual')}
-              className="bg-panel border border-amber/35 rounded-xl py-3.5 px-2 flex flex-col items-center gap-2 cursor-pointer text-amber hover:border-amber hover:bg-amber/7 transition-all relative overflow-hidden"
-            >
-              <span className="text-xl leading-none relative z-10">⌨</span>
-              <span className="font-mono text-[9px] font-bold tracking-[0.1em] uppercase leading-tight text-center relative z-10">MANUAL<br/>ENTRY</span>
-              <span className="font-mono text-[8px] tracking-wider text-sand text-center relative z-10">Type<br/>data</span>
-            </button>
-          </div>
-        </div>
 
         {/* Last Transaction */}
         <div className="px-5 pt-4">
@@ -185,6 +148,39 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Entry Options Modal */}
+      <ModalOverlay show={modalType === 'entry'} onClose={() => setModalType(null)}>
+        <ModalHeader title="// ADD_RECEIPT //" onClose={() => setModalType(null)} />
+        <ModalBody>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => setModalType('manual')}
+              className="bg-panel border border-amber/35 rounded-xl py-4 px-2 flex flex-col items-center gap-2 cursor-pointer text-amber hover:border-amber hover:bg-amber/7 transition-all"
+            >
+              <span className="text-2xl leading-none">⌨</span>
+              <span className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase">MANUAL</span>
+              <span className="font-mono text-[9px] text-sand">Type data</span>
+            </button>
+            <button
+              onClick={() => {
+                if (!userId) {
+                  showToast('⊘', 'LOGIN_REQUIRED // PLEASE_SIGN_IN');
+                } else {
+                  setModalType('qr');
+                }
+              }}
+              className={`bg-panel border rounded-xl py-4 px-2 flex flex-col items-center gap-2 transition-all ${
+                userId ? 'border-blue/35 text-blue hover:border-blue hover:bg-blue/8 cursor-pointer' : 'border-sand/20 text-sand/40 cursor-not-allowed'
+              }`}
+            >
+              <span className="text-2xl leading-none">▦</span>
+              <span className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase">QR CODE</span>
+              <span className="font-mono text-[9px] text-sand/60">Read ticket</span>
+            </button>
+          </div>
+        </ModalBody>
+      </ModalOverlay>
+
       {/* QR Modal */}
       <ModalOverlay show={modalType === 'qr'} onClose={() => { setModalType(null); setQrStatus('SCANNING'); }}>
         <ModalHeader title="QR_CODE // READER" titleColor="var(--blue)" onClose={() => { setModalType(null); setQrStatus('SCANNING'); }} />
@@ -215,41 +211,6 @@ export default function DashboardPage() {
           >
             [ SIMULATE_QR_DETECT ]
           </button>
-        </ModalBody>
-      </ModalOverlay>
-
-      {/* Scan Modal */}
-      <ModalOverlay show={modalType === 'scan'} onClose={() => setModalType(null)}>
-        <ModalHeader title="RECEIPT_SCANNER // OPTICAL" titleColor="var(--green)" onClose={() => setModalType(null)} />
-        <ModalBody>
-          <div className="w-full h-44 bg-hull border border-border-custom rounded-lg relative overflow-hidden flex items-center justify-center mb-4">
-            <div className="absolute inset-0" style={{
-              backgroundImage: 'linear-gradient(rgba(120,168,144,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(120,168,144,0.06) 1px, transparent 1px)',
-              backgroundSize: '20px 20px',
-            }} />
-            <div className="w-20 h-28 border-[1.5px] border-dashed border-green/30 rounded flex items-center justify-center text-3xl opacity-40 relative z-10">
-              🧾
-            </div>
-            <div
-              className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-green to-transparent"
-              style={{ animation: 'scan-beam 2s ease-in-out infinite', boxShadow: '0 0 12px #78A890' }}
-            />
-            {['tl','tr','bl','br'].map(p => (
-              <div key={p} className={`absolute w-4 h-4 ${p.includes('t') ? 'top-2' : 'bottom-2'} ${p.includes('l') ? 'left-2' : 'right-2'} border-${p.includes('t') ? 't' : 'b'}-2 border-${p.includes('l') ? 'l' : 'r'}-2 border-green`} />
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button className="flex-1 bg-transparent border-[1.5px] border-green text-green rounded-lg py-3 font-mono text-[11px] font-bold tracking-widest uppercase cursor-pointer hover:bg-green/10 transition-colors">
-              [ RETAKE ]
-            </button>
-            <button
-              onClick={() => showToast('📸', 'RECEIPT_CAPTURED // OCR PROCESSING')}
-              className="flex-[2] bg-amber border-2 border-[#C07830] rounded-lg py-3 font-mono text-[11px] font-bold tracking-widest uppercase text-hull cursor-pointer hover:opacity-90 transition-opacity"
-              style={{ boxShadow: 'inset 0 -2px 0 rgba(0,0,0,0.3)' }}
-            >
-              [[ CAPTURE ]]
-            </button>
-          </div>
         </ModalBody>
       </ModalOverlay>
 
@@ -313,6 +274,14 @@ export default function DashboardPage() {
           />
         </ModalBody>
       </ModalOverlay>
+
+      <button
+        onClick={() => setModalType('entry')}
+        className="fixed bottom-20 right-5 w-12 h-12 rounded-xl bg-amber border-2 border-[#C07830] flex items-center justify-center text-xl cursor-pointer z-50 text-hull hover:opacity-90 transition-opacity"
+        style={{ boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.3), 0 0 20px rgba(217,140,69,0.3)' }}
+      >
+        ＋
+      </button>
 
       <Toast icon={toast.icon} message={toast.message} visible={toast.visible} onClose={hideToast} />
 
