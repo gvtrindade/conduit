@@ -30,7 +30,7 @@ describe("db types exist", () => {
     const mod = await import("@/lib/db-types");
     const user: mod.User = {
       id: "uuid",
-      callsign: "VIPER",
+      name: "VIPER",
       email: "viper@test.com",
       rank: "SGT",
       role: "lead",
@@ -38,7 +38,7 @@ describe("db types exist", () => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
-    expect(user.callsign).toBe("VIPER");
+    expect(user.name).toBe("VIPER");
   });
 
   it("exports Merchant type", async () => {
@@ -184,5 +184,41 @@ describe("db types exist", () => {
       role: "lead",
     };
     expect(mc.role).toBe("lead");
+  });
+
+  it("categories table has user_id column", async () => {
+    const { categories } = await import("@/lib/powersync/AppSchema");
+    const colNames = categories.options.columns.map((c: any) => c.name);
+    expect(colNames).toContain("user_id");
+  });
+
+  it("tags table has user_id column", async () => {
+    const { tags } = await import("@/lib/powersync/AppSchema");
+    const colNames = tags.options.columns.map((c: any) => c.name);
+    expect(colNames).toContain("user_id");
+  });
+
+  it("merchants table has user_id column", async () => {
+    const { merchants } = await import("@/lib/powersync/AppSchema");
+    const colNames = merchants.options.columns.map((c: any) => c.name);
+    expect(colNames).toContain("user_id");
+  });
+
+  it("items table has user_id column", async () => {
+    const { items } = await import("@/lib/powersync/AppSchema");
+    const colNames = items.options.columns.map((c: any) => c.name);
+    expect(colNames).toContain("user_id");
+  });
+
+  it("receipts table has user_id column", async () => {
+    const { receipts } = await import("@/lib/powersync/AppSchema");
+    const colNames = receipts.options.columns.map((c: any) => c.name);
+    expect(colNames).toContain("user_id");
+  });
+
+  it("manifests table has user_id column", async () => {
+    const { manifests } = await import("@/lib/powersync/AppSchema");
+    const colNames = manifests.options.columns.map((c: any) => c.name);
+    expect(colNames).toContain("user_id");
   });
 });

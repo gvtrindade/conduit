@@ -19,7 +19,7 @@ export interface Tag {
 
 export interface User {
   id: string;
-  callsign: string;
+  name: string;
   email: string;
   rank: string | null;
   role: string | null;

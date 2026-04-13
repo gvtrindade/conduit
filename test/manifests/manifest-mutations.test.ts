@@ -23,7 +23,7 @@ describe("Manifest mutations", () => {
     const { createManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    const result = await createManifest(mockDb);
+    const result = await createManifest(mockDb, "user-123");
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];
@@ -32,22 +32,44 @@ describe("Manifest mutations", () => {
     expect(sql).toContain("title");
     expect(sql).toContain("type");
     expect(sql).toContain("status");
+    expect(sql).toContain("user_id");
 
-    expect(params).toHaveLength(10);
+    expect(params).toHaveLength(11);
     expect(params[1]).toBeNull();
     expect(params[2]).toBe("WEEKLY");
     expect(params[3]).toBe("DRAFT");
+    expect(params[7]).toBe("user-123");
 
     expect(result).toMatch(
       /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
     );
   });
 
+  it("createManifest() includes user_id when logged in", async () => {
+    const { createManifest } = await import("@/lib/manifest-mutations");
+    const mockDb = { execute: mockExecute } as any;
+
+    await createManifest(mockDb, "user-123");
+
+    const [sql, params] = mockExecute.mock.calls[0];
+    expect(params).toContain("user-123");
+  });
+
+  it("createManifest() allows NULL user_id when logged out", async () => {
+    const { createManifest } = await import("@/lib/manifest-mutations");
+    const mockDb = { execute: mockExecute } as any;
+
+    await createManifest(mockDb, null);
+
+    const [sql, params] = mockExecute.mock.calls[0];
+    expect(params).toContain(null);
+  });
+
   it("createManifest() returns the generated id", async () => {
     const { createManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    const id = await createManifest(mockDb);
+    const id = await createManifest(mockDb, "user-123");
 
     expect(typeof id).toBe("string");
     expect(id.length).toBeGreaterThan(0);
@@ -79,14 +101,14 @@ describe("Manifest mutations", () => {
     const { createManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    await createManifest(mockDb);
+    await createManifest(mockDb, "user-123");
 
     const [sql, params] = mockExecute.mock.calls[0];
     expect(sql).toContain("created_at");
     expect(sql).toContain("updated_at");
 
-    const createdAt = params[8];
-    const updatedAt = params[9];
+    const createdAt = params[9];
+    const updatedAt = params[10];
     expect(createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
@@ -95,7 +117,7 @@ describe("Manifest mutations", () => {
     const { updateManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    await updateManifest(mockDb, "abc-123", { title: "New Title" });
+    await updateManifest(mockDb, "abc-123", { title: "New Title" }, "user-123");
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];

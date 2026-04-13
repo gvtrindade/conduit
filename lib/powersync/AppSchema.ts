@@ -6,6 +6,7 @@ const categories = new Table(
     emoji: column.text,
     description: column.text,
     is_controlled: column.integer,
+    user_id: column.text,
     created_at: column.text,
   },
   { indexes: {} },
@@ -15,6 +16,7 @@ const tags = new Table(
   {
     name: column.text,
     is_controlled: column.integer,
+    user_id: column.text,
     created_at: column.text,
   },
   { indexes: {} },
@@ -22,7 +24,7 @@ const tags = new Table(
 
 const users = new Table(
   {
-    callsign: column.text,
+    name: column.text,
     email: column.text,
     rank: column.text,
     role: column.text,
@@ -38,6 +40,7 @@ const merchants = new Table(
   {
     name: column.text,
     emoji: column.text,
+    user_id: column.text,
     created_at: column.text,
   },
   { indexes: {} },
@@ -58,6 +61,7 @@ const items = new Table(
     lowest_price: column.real,
     lowest_price_date: column.text,
     freq_source_id: column.text,
+    user_id: column.text,
     created_at: column.text,
     updated_at: column.text,
   },
@@ -82,6 +86,7 @@ const receipts = new Table(
     item_count: column.integer,
     status: column.text,
     savings: column.real,
+    user_id: column.text,
     linked_manifest_id: column.text,
     processed_at: column.text,
     created_at: column.text,
@@ -93,6 +98,7 @@ const receipt_items = new Table(
   {
     receipt_id: column.text,
     item_id: column.text,
+    item_name: column.text,
     qty: column.text,
     unit_price: column.real,
     total: column.real,
@@ -110,6 +116,7 @@ const manifests = new Table(
     est_total: column.real,
     confidence: column.text,
     checked_count: column.integer,
+    user_id: column.text,
     created_by: column.text,
     created_at: column.text,
     updated_at: column.text,
@@ -152,6 +159,8 @@ export const AppSchema = new Schema({
   manifest_items,
   manifest_crew,
 });
+
+export { categories, tags, users, merchants, items, price_history, receipts, receipt_items, manifests, manifest_items, manifest_crew };
 
 export const ALLOWED_TABLES = new Set([
   "categories",

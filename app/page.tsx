@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { useQuery, useStatus } from '@powersync/react';
+import { useQuery } from '@powersync/react';
 import { usePowerSync } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
@@ -16,6 +16,7 @@ import { type ItemOption } from '@/components/receipt-item-selector';
 import { createMerchant } from '@/lib/merchant-mutations';
 import { createItem } from '@/lib/item-mutations';
 import { createReceipt } from '@/lib/receipt-mutations';
+import { authClient } from '@/lib/auth-client';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -23,12 +24,12 @@ export default function DashboardPage() {
   const { toast, showToast, hideToast } = useToast();
   const [qrStatus, setQrStatus] = useState('SCANNING');
   const powerSync = usePowerSync();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
 
   const { data: rawReceipts, isLoading } = useQuery(RECEIPTS_WITH_MERCHANT_QUERY);
   const { data: rawMerchants } = useQuery("SELECT id, name, emoji FROM merchants ORDER BY name");
   const { data: rawItems } = useQuery("SELECT id, name, unit, last_price FROM items ORDER BY name");
-  const status = useStatus();
-  const isInitialSync = !status.connected;
 
   const receipts: Receipt[] = useMemo(
     () => (rawReceipts as unknown as DbReceiptRow[]).map(mapDbReceiptToReceipt),
@@ -63,7 +64,7 @@ export default function DashboardPage() {
     return 'red' as const;
   };
 
-  if (isLoading || isInitialSync) {
+  if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
@@ -268,6 +269,7 @@ export default function DashboardPage() {
                 item_count: items.length,
                 status: "OK",
                 savings: null,
+                user_id: userId,
                 linked_manifest_id: null,
                 processed_at: null,
                 created_at: new Date().toISOString(),
@@ -286,7 +288,7 @@ export default function DashboardPage() {
             }}
             onCancel={() => setModalType(null)}
             onCreateMerchant={async (name: string, emoji: string | null) => {
-              return await createMerchant(powerSync, { name, emoji, created_at: null });
+              return await createMerchant(powerSync, { name, emoji, user_id: userId, created_at: null });
             }}
             onCreateItem={async (data: { name: string; unit: string }) => {
               return await createItem(powerSync, {
@@ -303,6 +305,7 @@ export default function DashboardPage() {
                 lowest_price: null,
                 lowest_price_date: null,
                 freq_source_id: null,
+                user_id: userId,
                 created_at: null,
                 updated_at: null,
               });

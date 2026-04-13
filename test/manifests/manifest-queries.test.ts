@@ -158,12 +158,12 @@ describe("Manifest queries", () => {
     expect(item.prevPrice).toBeNull();
   });
 
-  it("mapDbCrewToCrewMember derives initials from callsign", () => {
+  it("mapDbCrewToCrewMember derives initials from name", () => {
     const row = {
       manifest_id: "mft-042",
       user_id: "uuid-1",
       role: "SECTOR_7 // HQ",
-      callsign: "CAPT_PROVISIONS",
+      name: "CAPT_PROVISIONS",
       color: "#4A3828",
     };
 
@@ -179,7 +179,7 @@ describe("Manifest queries", () => {
   it("mapDbCrewToCrewMember handles null color", () => {
     const row = {
       manifest_id: "1", user_id: "1", role: null,
-      callsign: "J.DAVIDSON", color: null,
+      name: "J.DAVIDSON", color: null,
     };
 
     const member = mapDbCrewToCrewMember(row);

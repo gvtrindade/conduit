@@ -17,7 +17,7 @@ describe("Merchant mutations", () => {
       created_at: new Date().toISOString(),
     };
 
-    const result = await createMerchant(mockDb, data);
+    const result = await createMerchant(mockDb, data, "user-123");
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];
@@ -26,8 +26,10 @@ describe("Merchant mutations", () => {
     expect(sql).toContain("id");
     expect(sql).toContain("name");
     expect(sql).toContain("emoji");
+    expect(sql).toContain("user_id");
 
-    expect(params).toHaveLength(4);
+    expect(params).toHaveLength(5);
+    expect(params).toContain("user-123");
     expect(result).toMatch(
       /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
     );
@@ -43,7 +45,7 @@ describe("Merchant mutations", () => {
       emoji: "🏬",
     };
 
-    await updateMerchant(mockDb, id, data);
+    await updateMerchant(mockDb, id, data, "user-123");
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];
@@ -67,7 +69,7 @@ describe("Merchant mutations", () => {
       name: "Only Name Updated",
     };
 
-    await updateMerchant(mockDb, id, data);
+    await updateMerchant(mockDb, id, data, "user-123");
 
     const [sql, params] = mockExecute.mock.calls[0];
     expect(sql).toContain("UPDATE merchants");
@@ -82,7 +84,7 @@ describe("Merchant mutations", () => {
 
     const id = "merchant-uuid-to-delete";
 
-    await deleteMerchant(mockDb, id);
+    await deleteMerchant(mockDb, id, "user-123");
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];

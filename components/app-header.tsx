@@ -1,21 +1,23 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useSession, signOut } from '@/lib/auth-client';
+import { authClient } from '@/lib/auth-client';
 import StatusLine from '@/components/status-line';
 import { getPageName, isAuthRoute } from '@/lib/route-config';
 import { useStatus } from '@powersync/react';
+import { disconnectDb } from './providers/SystemProvider';
 
 export default function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const pageName = getPageName(pathname);
   const isAuth = isAuthRoute(pathname);
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = authClient.useSession();
   const status = useStatus();
 
   const handleSignOut = async () => {
-    await signOut();
+    await authClient.signOut();
+    disconnectDb();
     router.push('/login');
   };
 

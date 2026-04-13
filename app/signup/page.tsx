@@ -3,14 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signUp } from '@/lib/auth-client';
+import { authClient } from '@/lib/auth-client';
 
 export default function SignupPage() {
   const router = useRouter();
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [callsign, setCallsign] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,10 +32,10 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const { error: signUpError } = await signUp.email({
+      const { error: signUpError } = await authClient.signUp.email({
         email,
         password,
-        name: callsign,
+        name: name,
       });
 
       if (signUpError) {
@@ -66,10 +66,10 @@ export default function SignupPage() {
 
         <div className="space-y-3">
           <div>
-            <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// CALLSIGN //</label>
+            <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// NAME //</label>
             <input
-              value={callsign}
-              onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+              value={name}
+              onChange={(e) => setName(e.target.value.toUpperCase())}
               className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
               placeholder="CAPT_PROVISIONS"
             />

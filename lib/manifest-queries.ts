@@ -59,7 +59,7 @@ export const MANIFEST_CREW_QUERY = `
     manifest_crew.manifest_id,
     manifest_crew.user_id,
     manifest_crew.role,
-    users.callsign,
+    users.name,
     users.color
   FROM manifest_crew
   JOIN users ON manifest_crew.user_id = users.id
@@ -108,7 +108,7 @@ export interface DbManifestCrewRow {
   manifest_id: string;
   user_id: string;
   role: string | null;
-  callsign: string;
+  name: string;
   color: string | null;
 }
 
@@ -170,8 +170,8 @@ export function mapDbManifestItemToManifestItem(
   };
 }
 
-export function deriveInitials(callsign: string): string {
-  return callsign
+export function deriveInitials(name: string): string {
+  return name
     .split("_")
     .map((w) => w[0])
     .join("")
@@ -183,8 +183,8 @@ export function mapDbCrewToCrewMember(
   row: DbManifestCrewRow
 ): CrewMember {
   return {
-    initials: deriveInitials(row.callsign),
-    name: row.callsign,
+    initials: deriveInitials(row.name),
+    name: row.name,
     role: row.role || "",
     color: row.color || "#2A3848",
     badge: "OPERATOR",

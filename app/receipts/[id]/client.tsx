@@ -14,6 +14,7 @@ import { deleteReceipt, updateReceipt } from '@/lib/receipt-mutations';
 import { deleteReceiptItem, updateReceiptItem, addReceiptItem } from '@/lib/receipt-item-mutations';
 import { createMerchant } from '@/lib/merchant-mutations';
 import { createItem } from '@/lib/item-mutations';
+import { authClient } from '@/lib/auth-client';
 import { saveReceiptEdits } from '@/lib/receipt-edit-helpers';
 import {
   RECEIPT_DETAIL_QUERY,
@@ -33,6 +34,8 @@ const tagStyles: Record<string, string> = {
 export default function ReceiptDetailClient({ id }: { id: string }) {
   const router = useRouter();
   const powerSync = usePowerSync();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
   const [showMenu, setShowMenu] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -204,6 +207,7 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
                 lowest_price: null,
                 lowest_price_date: null,
                 freq_source_id: null,
+                user_id: userId,
                 created_at: null,
                 updated_at: null,
               });

@@ -120,7 +120,7 @@ export interface Analytics {
 }
 
 export interface UserProfile {
-  callsign: string;
+  name: string;
   rank: string;
   email: string;
   level: number;

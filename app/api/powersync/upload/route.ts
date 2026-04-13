@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/auth";
+import { Pool } from "pg";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
 // Validation: name must be a non-empty string
 function isValidName(name: unknown): name is string {
@@ -25,6 +27,15 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string> = {
   ACTIVE: "DONE",
   DONE: "ARCHIVED",
 };
+
+const db = new Pool({
+  host: "localhost",
+  port: 5434,
+  database: "postgres",
+  user: "postgres",
+  password: "changeme",
+});
+
 
 // Validate foreign key fields exist in database
 async function isValidForeignKey(
@@ -56,6 +67,15 @@ export async function POST(request: NextRequest) {
   ].filter(Boolean);
   if (!validTokens.includes(token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const headersList = await headers();
+  let userId: string | null = null;
+  try {
+    const session = await auth.api.getSession({ headers: headersList });
+    userId = session?.user?.id ?? null;
+  } catch {
+    userId = null;
   }
 
   const body = await request.json();
@@ -107,12 +127,13 @@ export async function POST(request: NextRequest) {
       }
 
       await db.query(
-        `INSERT INTO items (id, name, codename, emoji, category_id, category_custom, primary_tag_id, primary_tag_custom, unit, created_at, updated_at) 
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        `INSERT INTO items (id, name, codename, emoji, category_id, category_custom, primary_tag_id, primary_tag_custom, unit, user_id, created_at, updated_at) 
+ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
  ON CONFLICT (id) DO UPDATE SET 
    name = EXCLUDED.name,
    category_id = EXCLUDED.category_id,
    primary_tag_id = EXCLUDED.primary_tag_id,
+   user_id = EXCLUDED.user_id,
    updated_at = EXCLUDED.updated_at`,
         [
           id,
@@ -124,6 +145,7 @@ export async function POST(request: NextRequest) {
           primaryTagId ?? null,
           opData.primary_tag_custom,
           opData.unit,
+          userId,
           createdAt,
           createdAt
         ],
@@ -289,8 +311,8 @@ export async function POST(request: NextRequest) {
         await client.query("BEGIN");
 
         await client.query(
-          `INSERT INTO receipts (id, merchant_id, receipt_date, total, item_count, status, savings, linked_manifest_id, processed_at, created_at)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO receipts (id, merchant_id, receipt_date, total, item_count, status, savings, linked_manifest_id, processed_at, user_id, created_at)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
   ON CONFLICT (id) DO UPDATE SET
     merchant_id = EXCLUDED.merchant_id,
     receipt_date = EXCLUDED.receipt_date,
@@ -299,7 +321,8 @@ export async function POST(request: NextRequest) {
     status = EXCLUDED.status,
     savings = EXCLUDED.savings,
     linked_manifest_id = EXCLUDED.linked_manifest_id,
-    processed_at = EXCLUDED.processed_at`,
+    processed_at = EXCLUDED.processed_at,
+    user_id = EXCLUDED.user_id`,
           [
             id,
             receiptData.merchant_id,
@@ -310,6 +333,7 @@ export async function POST(request: NextRequest) {
             receiptData?.savings ?? null,
             receiptData?.linked_manifest_id ?? null,
             receiptData?.processed_at ?? null,
+            userId,
             createdAt,
           ],
         );
@@ -590,15 +614,17 @@ export async function POST(request: NextRequest) {
       }
 
       await db.query(
-        `INSERT INTO merchants (id, name, emoji, created_at)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO merchants (id, name, emoji, user_id, created_at)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET
            name = EXCLUDED.name,
-           emoji = EXCLUDED.emoji`,
+           emoji = EXCLUDED.emoji,
+           user_id = EXCLUDED.user_id`,
         [
           id,
           name,
           opData?.emoji ?? null,
+          userId,
           createdAt
         ]
       );
@@ -658,8 +684,8 @@ export async function POST(request: NextRequest) {
       }
 
       await db.query(
-        `INSERT INTO manifests (id, title, type, status, est_total, confidence, checked_count, created_by, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        `INSERT INTO manifests (id, title, type, status, est_total, confidence, checked_count, user_id, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (id) DO UPDATE SET
            title = EXCLUDED.title,
            type = EXCLUDED.type,
@@ -667,6 +693,7 @@ export async function POST(request: NextRequest) {
            est_total = EXCLUDED.est_total,
            confidence = EXCLUDED.confidence,
            checked_count = EXCLUDED.checked_count,
+           user_id = EXCLUDED.user_id,
            updated_at = EXCLUDED.updated_at`,
         [
           id,
@@ -676,6 +703,7 @@ export async function POST(request: NextRequest) {
           opData?.est_total ?? null,
           opData?.confidence ?? null,
           opData?.checked_count ?? null,
+          userId,
           opData?.created_by ?? null,
           createdAt,
           createdAt,

@@ -4,6 +4,7 @@ interface AbstractPowerSyncDatabase {
 
 export async function createManifest(
   db: AbstractPowerSyncDatabase,
+  userId: string | null,
 ): Promise<string> {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -17,13 +18,14 @@ export async function createManifest(
       est_total,
       confidence,
       checked_count,
+      user_id,
       created_by,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  const params = [id, null, "WEEKLY", "DRAFT", 0, null, 0, null, now, now];
+  const params = [id, null, "WEEKLY", "DRAFT", 0, null, 0, userId, null, now, now];
 
   await db.execute(sql, params);
   return id;
@@ -33,6 +35,7 @@ export async function updateManifest(
   db: AbstractPowerSyncDatabase,
   id: string,
   data: { title?: string | null; type?: string },
+  userId: string | null,
 ): Promise<void> {
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -53,8 +56,11 @@ export async function updateManifest(
   values.push(new Date().toISOString());
   values.push(id);
 
-  const sql = `UPDATE manifests SET ${fields.join(", ")} WHERE id = ?`;
-  await db.execute(sql, values);
+  const sql = `UPDATE manifests SET ${fields.join(", ")} WHERE id = ?${
+    userId ? " AND user_id = ?" : ""
+  }`;
+  const params = userId ? [...values, userId] : values;
+  await db.execute(sql, params);
 }
 
 async function getCurrentStatus(
@@ -221,10 +227,11 @@ export async function toggleManifestItemChecked(
 export async function deleteManifest(
   db: AbstractPowerSyncDatabase,
   id: string,
+  userId: string | null,
 ): Promise<void> {
   const result = (await db.execute(
-    "SELECT id FROM manifests WHERE id = ?",
-    [id],
+    "SELECT id FROM manifests WHERE id = ?" + (userId ? " AND user_id = ?" : ""),
+    userId ? [id, userId] : [id],
   )) as { rows: { item: (idx: number) => { id: string }; length: number } };
 
   if (!result.rows || result.rows.length === 0) {

@@ -54,9 +54,9 @@ describe("users table", () => {
     expect(columns.id.data_type).toBe("uuid");
     expect(columns.id.is_nullable).toBe("NO");
 
-    expect(columns.callsign).toBeDefined();
-    expect(columns.callsign.data_type).toBe("text");
-    expect(columns.callsign.is_nullable).toBe("NO");
+    expect(columns.name).toBeDefined();
+    expect(columns.name.data_type).toBe("text");
+    expect(columns.name.is_nullable).toBe("NO");
 
     expect(columns.email).toBeDefined();
     expect(columns.email.data_type).toBe("text");

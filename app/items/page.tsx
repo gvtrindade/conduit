@@ -7,6 +7,7 @@ import SectionLabel from '@/components/section-label';
 import Toast, { useToast } from '@/components/toast';
 import ModalOverlay, { ModalHeader, ModalBody } from '@/components/modal-overlay';
 import ItemForm, { type ItemFormData, type Category, type Tag } from '@/components/item-form';
+import { authClient } from '@/lib/auth-client';
 import { createItem } from '@/lib/item-mutations';
 import { ITEMS_WITH_JOINS_QUERY, mapDbItemToItem, type DbItemRow } from '@/lib/item-queries';
 import type { Item } from '@/lib/types';
@@ -45,6 +46,8 @@ export default function ItemsPage() {
   const [showNewItem, setShowNewItem] = useState(false);
   const { toast, showToast, hideToast } = useToast();
   const powerSync = usePowerSync();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
 
   const { data: rawItems, isLoading } = useQuery(ITEMS_WITH_JOINS_QUERY);
   const { data: categories } = useQuery("SELECT * FROM categories");
@@ -233,6 +236,7 @@ export default function ItemsPage() {
                 freq_source_id: null,
                 created_at: now,
                 updated_at: now,
+                user_id: userId,
               });
               showToast('✦', 'ITEM_CREATED');
               setShowNewItem(false);

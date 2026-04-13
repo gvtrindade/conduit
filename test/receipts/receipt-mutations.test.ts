@@ -23,7 +23,7 @@ describe("Receipt mutations", () => {
       created_at: new Date().toISOString(),
     };
 
-    const result = await createReceipt(mockDb, data);
+    const result = await createReceipt(mockDb, data, "user-123");
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];
@@ -33,8 +33,10 @@ describe("Receipt mutations", () => {
     expect(sql).toContain("merchant_id");
     expect(sql).toContain("receipt_date");
     expect(sql).toContain("total");
+    expect(sql).toContain("user_id");
 
-    expect(params).toHaveLength(10);
+    expect(params).toHaveLength(11);
+    expect(params).toContain("user-123");
     expect(result).toMatch(
       /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
     );

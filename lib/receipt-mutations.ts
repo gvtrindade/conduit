@@ -18,6 +18,7 @@ export interface ReceiptCreateData {
   item_count: number | null;
   status: string;
   savings: number | null;
+  user_id: string | null;
   linked_manifest_id: string | null;
   processed_at: string | null;
   created_at: string | null;
@@ -39,10 +40,11 @@ export async function createReceipt(
       item_count,
       status,
       savings,
+      user_id,
       linked_manifest_id,
       processed_at,
       created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
@@ -53,6 +55,7 @@ export async function createReceipt(
     data.item_count,
     data.status,
     data.savings,
+    data.user_id,
     data.linked_manifest_id,
     data.processed_at,
     data.created_at,
@@ -106,7 +109,8 @@ export interface ReceiptUpdateData {
 export async function updateReceipt(
   db: AbstractPowerSyncDatabase,
   id: string,
-  data: ReceiptUpdateData
+  data: ReceiptUpdateData,
+  userId: string | null
 ): Promise<void> {
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -131,24 +135,33 @@ export async function updateReceipt(
 
   values.push(id);
 
-  const sql = `UPDATE receipts SET ${fields.join(", ")} WHERE id = ?`;
-  await db.execute(sql, values);
+  const sql = `UPDATE receipts SET ${fields.join(", ")} WHERE id = ?${
+    userId ? " AND user_id = ?" : ""
+  }`;
+  const params = userId ? [...values, userId] : values;
+  await db.execute(sql, params);
 }
 
 export async function deleteReceipt(
   db: AbstractPowerSyncDatabase,
-  id: string
+  id: string,
+  userId: string | null
 ): Promise<void> {
-  const sql = `DELETE FROM receipts WHERE id = ?`;
-  await db.execute(sql, [id]);
+  const sql = `DELETE FROM receipts WHERE id = ?${
+    userId ? " AND user_id = ?" : ""
+  }`;
+  await db.execute(sql, userId ? [id, userId] : [id]);
 }
 
 export async function checkReceiptExists(
   db: AbstractPowerSyncDatabase,
-  id: string
+  id: string,
+  userId?: string | null
 ): Promise<boolean> {
-  const sql = `SELECT COUNT(*) as count FROM receipts WHERE id = ?`;
-  const result = await db.execute(sql, [id]) as { rows: { count: number }[] };
+  const sql = `SELECT COUNT(*) as count FROM receipts WHERE id = ?${
+    userId ? " AND user_id = ?" : ""
+  }`;
+  const result = await db.execute(sql, userId ? [id, userId] : [id]) as { rows: { count: number }[] };
   const row = result.rows[0];
   return (row?.count ?? 0) > 0;
 }

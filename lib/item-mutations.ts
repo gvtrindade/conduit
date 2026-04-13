@@ -27,9 +27,10 @@ export async function createItem(
       lowest_price,
       lowest_price_date,
       freq_source_id,
+      user_id,
       created_at,
       updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
@@ -47,6 +48,7 @@ export async function createItem(
     data.lowest_price,
     data.lowest_price_date,
     data.freq_source_id,
+    data.user_id,
     data.created_at || now,
     data.updated_at || now,
   ];
@@ -58,7 +60,8 @@ export async function createItem(
 export async function updateItem(
   db: AbstractPowerSyncDatabase,
   id: string,
-  data: Partial<Omit<ItemsRecord, "id">>
+  data: Partial<Omit<ItemsRecord, "id">>,
+  userId: string | null
 ): Promise<void> {
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -91,16 +94,22 @@ export async function updateItem(
   values.push(new Date().toISOString());
   values.push(id);
 
-  const sql = `UPDATE items SET ${fields.join(", ")} WHERE id = ?`;
-  await db.execute(sql, values);
+  const sql = `UPDATE items SET ${fields.join(", ")} WHERE id = ?${
+    userId ? " AND user_id = ?" : ""
+  }`;
+  const params = userId ? [...values, userId] : values;
+  await db.execute(sql, params);
 }
 
 export async function deleteItem(
   db: AbstractPowerSyncDatabase,
-  id: string
+  id: string,
+  userId: string | null
 ): Promise<void> {
-  const sql = `DELETE FROM items WHERE id = ?`;
-  await db.execute(sql, [id]);
+  const sql = `DELETE FROM items WHERE id = ?${
+    userId ? " AND user_id = ?" : ""
+  }`;
+  await db.execute(sql, userId ? [id, userId] : [id]);
 }
 
 export async function checkItemHasReceipts(

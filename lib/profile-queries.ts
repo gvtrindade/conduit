@@ -6,7 +6,7 @@ import type { UserProfile } from "./types";
 export const USER_PROFILE_BY_EMAIL_QUERY = `
   SELECT
     users.id,
-    users.callsign,
+    users.name,
     users.email,
     users.rank,
     users.role,
@@ -18,7 +18,7 @@ export const USER_PROFILE_BY_EMAIL_QUERY = `
 
 export interface DbUserRow {
   id: string;
-  callsign: string | null;
+  name: string | null;
   email: string | null;
   rank: string | null;
   role: string | null;
@@ -70,7 +70,7 @@ export function mapDbUserToProfile(
   variance: number
 ): UserProfile {
   return {
-    callsign: userRow?.callsign || 'UNKNOWN',
+    name: userRow?.name || 'UNKNOWN',
     rank: userRow?.rank || 'UNRANKED',
     email: userRow?.email || '',
     level: 4, // Gamification placeholder
