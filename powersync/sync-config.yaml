@@ -1,17 +1,17 @@
 config:
   edition: 3
 streams:
-  shared_data:
-    auto_subscribe: true
-    queries:
-      - SELECT * FROM categories
-      - SELECT * FROM tags
-      - SELECT * FROM merchants
-      - SELECT * FROM items
-      - SELECT * FROM price_history
-      - SELECT * FROM receipts
-      - SELECT * FROM receipt_items
-      - SELECT * FROM manifests
-      - SELECT * FROM manifest_items
-      - SELECT * FROM manifest_crew
-      - SELECT * FROM "user"
+  # shared_data:
+  #   auto_subscribe: true
+  #   queries:
+  #     - SELECT * FROM categories
+  #     - SELECT * FROM tags
+  #     - SELECT * FROM merchants
+  #     - SELECT * FROM items
+  #     - SELECT * FROM price_history
+  #     - SELECT * FROM receipts
+  #     - SELECT * FROM receipt_items
+  #     - SELECT * FROM manifests
+  #     - SELECT * FROM manifest_items
+  #     - SELECT * FROM manifest_crew
+  #     - SELECT * FROM "user"

@@ -4,6 +4,7 @@ import type {
   PowerSyncCredentials,
 } from "@powersync/web";
 import { ALLOWED_TABLES } from "./AppSchema";
+import { authClient } from "../auth-client";
 
 export class Connector implements PowerSyncBackendConnector {
   private backendUrl: string;
@@ -19,9 +20,15 @@ export class Connector implements PowerSyncBackendConnector {
   }
 
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
+    const { data, error } = await authClient.token();
+
+    if (error || !data) {
+      throw new Error("Failed to fetch token");
+    }
+
     return {
-      endpoint: this.powersyncUrl,
-      token: this.powersyncToken,
+      endpoint: "http://localhost:8080",
+      token: data.token,
     };
   }
 
@@ -40,7 +47,9 @@ export class Connector implements PowerSyncBackendConnector {
             ? Object.fromEntries(
                 Object.entries(op.opData).map(([k, v]) => [
                   k,
-                  ["completed", "checked", "is_unknown"].includes(k) ? Boolean(v) : v,
+                  ["completed", "checked", "is_unknown"].includes(k)
+                    ? Boolean(v)
+                    : v,
                 ]),
               )
             : undefined,

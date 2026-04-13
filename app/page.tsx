@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
-import { useQuery } from '@powersync/react';
+import { useQuery, useStatus } from '@powersync/react';
 import { usePowerSync } from '@powersync/react';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
@@ -27,6 +27,8 @@ export default function DashboardPage() {
   const { data: rawReceipts, isLoading } = useQuery(RECEIPTS_WITH_MERCHANT_QUERY);
   const { data: rawMerchants } = useQuery("SELECT id, name, emoji FROM merchants ORDER BY name");
   const { data: rawItems } = useQuery("SELECT id, name, unit, last_price FROM items ORDER BY name");
+  const status = useStatus();
+  const isInitialSync = !status.connected;
 
   const receipts: Receipt[] = useMemo(
     () => (rawReceipts as unknown as DbReceiptRow[]).map(mapDbReceiptToReceipt),
@@ -61,7 +63,7 @@ export default function DashboardPage() {
     return 'red' as const;
   };
 
-  if (isLoading) {
+  if (isLoading || isInitialSync) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">

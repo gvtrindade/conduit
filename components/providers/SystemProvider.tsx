@@ -25,6 +25,14 @@ export const db = new PowerSyncDatabase({
 const connector = new Connector();
 db.connect(connector);
 
+export const disconnectDb = () => {
+  db.disconnectAndClear();
+};
+
+export const reconnectDb = () => {
+  db.connect(connector);
+};
+
 export const SystemProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <Suspense>

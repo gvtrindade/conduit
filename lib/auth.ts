@@ -2,25 +2,32 @@ import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
-export const db = new Pool({
-  host: process.env.PG_HOST || "localhost",
-  port: parseInt(process.env.PG_PORT || "5434"),
-  user: process.env.PG_USER || "postgres",
-  password: process.env.PG_PASSWORD || "changeme",
-  database: process.env.PG_DATABASE || "postgres",
-});
-
 export const auth = betterAuth({
-  database: {
-    db,
-    type: "postgres",
-  },
+  baseURL: "http://localhost:3000",
+  trustedOrigins: ["http://localhost:8080"],
+  database: new Pool({
+    host: "localhost",
+    port: 5434,
+    database: "postgres",
+    user: "postgres",
+    password: "changeme",
+  }),
   emailAndPassword: {
     enabled: true,
-    requireEmailVerification: false,
   },
-  plugins: [jwt()],
-  trustedOrigins: ["http://localhost:3000"],
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID as string,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+    },
+  },
+  plugins: [
+    jwt({
+      jwks: {
+        keyPairConfig: {
+          alg: "RS256",
+        },
+      },
+    }),
+  ],
 });
-
-export type Auth = typeof auth;

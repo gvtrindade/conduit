@@ -26,14 +26,8 @@ sync_config:
   path: sync-config.yaml
 
 client_auth:
-  jwks:
-    keys:
-      - kty: oct
-        alg: HS256
-        kid: example-key
-        k: wZk7NrJn8Hncqla4lRv3HJfiMoapoWvYBllx1TObhDw
-  audience: ["powersync-dev", "powersync"]
-
+  jwks_uri: http://192.168.1.9:3000/api/auth/jwks
+  audience: ["http://localhost:3000"]
 api:
   tokens:
     - dev-token-do-not-use-in-production
