@@ -8,7 +8,7 @@ const navItems = [
   { href: "/", icon: "$", label: "RCPTS" },
   { href: "/items", icon: "#", label: "ITEMS" },
   { href: "/manifests", icon: "=", label: "LISTS" },
-  { href: "/analytics", icon: "~", label: "ANLTX" },
+  // { href: "/analytics", icon: "~", label: "ANLTX" },
   { href: "/profile", icon: "@", label: "PROF" },
 ];
 

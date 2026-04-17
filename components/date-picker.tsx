@@ -45,8 +45,8 @@ export function DatePicker({ value, onChange, min, max }: DatePickerProps) {
   });
 
   const dropdownClassName = dropdownPosition === 'above'
-    ? 'absolute z-50 mb-1 bg-panel border border-border-custom shadow-lg min-w-[280px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-x-auto overflow-y-auto bottom-full'
-    : 'absolute z-50 mt-1 bg-panel border border-border-custom shadow-lg min-w-[280px] max-w-[calc(100vw-2rem)] max-h-[calc(100vh-2rem)] overflow-x-auto overflow-y-auto';
+    ? 'absolute z-[400] mb-1 bg-panel border border-border-custom shadow-lg min-w-[280px] bottom-full h-fit'
+    : 'absolute z-[400] mt-1 bg-panel border border-border-custom shadow-lg min-w-[280px] h-fit';
 
   const minDate = min ? parseFormattedDate(min) : null;
   const maxDate = max ? parseFormattedDate(max) : null;
@@ -108,7 +108,7 @@ export function DatePicker({ value, onChange, min, max }: DatePickerProps) {
       </button>
 
       {isOpen && (
-        <div ref={dropdownRef} className={dropdownClassName} data-testid="datepicker-dropdown" style={maxHeight !== undefined ? { maxHeight: `${maxHeight}px` } : undefined}>
+        <div ref={dropdownRef} className={dropdownClassName} data-testid="datepicker-dropdown">
           <div className="p-2 border-b border-border-custom flex items-center gap-2">
             <select
               value={viewMonth}
