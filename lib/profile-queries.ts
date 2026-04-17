@@ -25,11 +25,11 @@ export interface DbUserRow {
   color: string | null;
 }
 
-// Query to get mission count (receipts)
+// Query to get mission count (manifests)
 export const MISSION_COUNT_QUERY = `
   SELECT COUNT(*) as mission_count
-  FROM receipts
-  WHERE status = 'OK'
+  FROM manifests
+  WHERE status IN ('DONE', 'ARCHIVED')
 `;
 
 export interface DbMissionCountRow {
@@ -38,8 +38,8 @@ export interface DbMissionCountRow {
 
 // Query to get items tracked count
 export const ITEMS_TRACKED_COUNT_QUERY = `
-  SELECT COUNT(DISTINCT item_id) as items_tracked
-  FROM receipt_items
+  SELECT COUNT(*) as items_tracked
+  FROM items
 `;
 
 export interface DbItemsTrackedRow {

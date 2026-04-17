@@ -18,8 +18,9 @@ export interface DbKpiRow {
 
 // Items tracked query
 export const ITEMS_TRACKED_QUERY = `
-  SELECT COUNT(DISTINCT item_id) as items_tracked
-  FROM receipt_items
+  SELECT COUNT(*) as items_tracked
+  FROM items
+  WHERE user_id = ?
 `;
 
 export interface DbItemsTrackedRow {

@@ -1,30 +1,25 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery, usePowerSync } from "@powersync/react";
+import { useQuery } from "@powersync/react";
 import Badge from "@/components/badge";
 import SectionLabel from "@/components/section-label";
 import ProgressBar from "@/components/progress-bar";
 import PrefillPriceToggle from "@/components/prefill-price-toggle";
 import { authClient } from "@/lib/auth-client";
 import {
-  USER_PROFILE_BY_EMAIL_QUERY,
   MISSION_COUNT_QUERY,
   ITEMS_TRACKED_COUNT_QUERY,
   VARIANCE_QUERY,
-  mapDbUserToProfile,
-  type DbUserRow,
   type DbMissionCountRow,
   type DbItemsTrackedRow,
   type DbVarianceRow,
 } from "@/lib/profile-queries";
 import { disconnectDb } from "@/components/providers/SystemProvider";
+import type { UserProfile } from "@/lib/types";
 
 export default function ProfilePage() {
   const { data: session } = authClient.useSession();
-  const userId = session?.user?.id || null;
-  const userEmail = session?.user?.email || "";
-  const powerSync = usePowerSync();
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   const handleLogin = async () => {
@@ -42,10 +37,6 @@ export default function ProfilePage() {
     disconnectDb();
   };
 
-  const { data: rawUser, isLoading: userLoading } = useQuery(
-    USER_PROFILE_BY_EMAIL_QUERY,
-    [userEmail],
-  );
   const { data: rawMissionCount, isLoading: missionLoading } =
     useQuery(MISSION_COUNT_QUERY);
   const { data: rawItemsTracked, isLoading: itemsLoading } = useQuery(
@@ -54,11 +45,9 @@ export default function ProfilePage() {
   const { data: rawVariance, isLoading: varianceLoading } =
     useQuery(VARIANCE_QUERY);
 
-  const isLoading =
-    userLoading || missionLoading || itemsLoading || varianceLoading;
+  const isLoading = missionLoading || itemsLoading || varianceLoading;
 
-  const profile = useMemo(() => {
-    const userRow = (rawUser as unknown as DbUserRow[])?.[0];
+  const profile = useMemo((): UserProfile => {
     const missionCount =
       (rawMissionCount as unknown as DbMissionCountRow[])?.[0]?.mission_count ||
       0;
@@ -67,13 +56,24 @@ export default function ProfilePage() {
       0;
     const variance =
       (rawVariance as unknown as DbVarianceRow[])?.[0]?.avg_variance || 0;
-    return mapDbUserToProfile(userRow, missionCount, itemsTracked, variance);
-  }, [rawUser, rawMissionCount, rawItemsTracked, rawVariance]);
+    const name = session?.user?.name || session?.user?.email || "UNKNOWN";
+    return {
+      name,
+      rank: "UNRANKED",
+      email: session?.user?.email || "",
+      level: 4,
+      xp: Math.min(missionCount * 400 + itemsTracked * 50, 10000),
+      xpNext: 10000,
+      missions: missionCount,
+      itemsTracked,
+      variance: `${variance >= 0 ? "+" : ""}${variance.toFixed(1)}%`,
+    };
+  }, [session, rawMissionCount, rawItemsTracked, rawVariance]);
 
   const initials =
     profile.name
       .split(/[\s_-]+/)
-      .map((w) => w[0])
+      .map((w: string) => w[0])
       .join("")
       .slice(0, 2)
       .toUpperCase() || "??";
