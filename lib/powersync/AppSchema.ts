@@ -40,6 +40,7 @@ const merchants = new Table(
   {
     name: column.text,
     emoji: column.text,
+    cnpj: column.text,
     user_id: column.text,
     created_at: column.text,
   },
@@ -50,6 +51,7 @@ const items = new Table(
   {
     name: column.text,
     codename: column.text,
+    code: column.text,
     emoji: column.text,
     category_id: column.text,
     category_custom: column.text,

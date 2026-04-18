@@ -16,13 +16,16 @@ import { type ItemOption } from '@/components/receipt-item-selector';
 import { createMerchant } from '@/lib/merchant-mutations';
 import { createItem } from '@/lib/item-mutations';
 import { createReceipt } from '@/lib/receipt-mutations';
+import { createPendingReceiptFromQR } from '@/lib/qr-receipt-mutations';
 import { authClient } from '@/lib/auth-client';
+import QRScanner from '@/components/qr-scanner';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [modalType, setModalType] = useState<string | null>(null);
+  const [qrInputMode, setQrInputMode] = useState<'camera' | 'manual'>('camera');
+  const [manualChave, setManualChave] = useState('');
   const { toast, showToast, hideToast } = useToast();
-  const [qrStatus, setQrStatus] = useState('SCANNING');
   const powerSync = usePowerSync();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id ?? null;
@@ -54,6 +57,24 @@ export default function DashboardPage() {
     })),
     [rawItems]
   );
+
+  const handleManualChaveSubmit = async () => {
+    if (!/^\d{44}$/.test(manualChave)) {
+      showToast('⊘', 'INVALID_KEY // 44_DIGITS_REQUIRED');
+      return;
+    }
+    if (!userId) {
+      showToast('⊘', 'LOGIN_REQUIRED // PLEASE_SIGN_IN');
+      return;
+    }
+    showToast('⏳', 'PROCESSING_KEY // ' + manualChave.slice(0, 8) + '...');
+    const receiptId = await createPendingReceiptFromQR(powerSync, manualChave, userId);
+    showToast('✓', 'RECEIPT_CREATED // PENDING');
+    setModalType(null);
+    setManualChave('');
+    setQrInputMode('camera');
+    router.push(`/receipts/${receiptId}`);
+  };
 
   const lastReceipt = receipts[0];
   const recentReceipts = receipts.slice(1, 11);
@@ -182,35 +203,65 @@ export default function DashboardPage() {
       </ModalOverlay>
 
       {/* QR Modal */}
-      <ModalOverlay show={modalType === 'qr'} onClose={() => { setModalType(null); setQrStatus('SCANNING'); }}>
-        <ModalHeader title="QR_CODE // READER" titleColor="var(--blue)" onClose={() => { setModalType(null); setQrStatus('SCANNING'); }} />
+      <ModalOverlay show={modalType === 'qr'} onClose={() => setModalType(null)}>
+        <ModalHeader title="QR_CODE // READER" titleColor="var(--blue)" onClose={() => setModalType(null)} />
         <ModalBody>
-          <div className="w-44 h-44 mx-auto mb-4 border-2 border-blue rounded-lg bg-hull relative flex items-center justify-center">
-            <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-blue" />
-            <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-blue" />
-            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-blue" />
-            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-blue" />
-            <div
-              className="absolute left-2 right-2 h-0.5 bg-gradient-to-r from-transparent via-blue to-transparent"
-              style={{ animation: 'scan-beam 2s ease-in-out infinite', boxShadow: '0 0 8px #5B8A9E' }}
-            />
-            <span className="text-4xl opacity-15">▦</span>
+          <div className="mb-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setQrInputMode('camera')}
+                className={`flex-1 py-2 px-2 rounded-lg border font-mono text-[10px] font-bold tracking-[0.1em] uppercase transition-all ${
+                  qrInputMode === 'camera'
+                    ? 'border-blue bg-blue/15 text-blue'
+                    : 'border-sand/25 text-sand/50 cursor-not-allowed'
+                }`}
+              >
+                ▦ CAMERA
+              </button>
+              <button
+                onClick={() => setQrInputMode('manual')}
+                className={`flex-1 py-2 px-2 rounded-lg border font-mono text-[10px] font-bold tracking-[0.1em] uppercase transition-all ${
+                  qrInputMode === 'manual'
+                    ? 'border-blue bg-blue/15 text-blue'
+                    : 'border-sand/25 text-sand/50 cursor-not-allowed'
+                }`}
+              >
+                ⌨ MANUAL
+              </button>
+            </div>
           </div>
-          <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-blue text-center mb-4">
-            {qrStatus}<span style={{ animation: 'pulse-dot 1s step-end infinite' }}>...</span>
-          </div>
-          <button
-            onClick={() => {
-              setQrStatus('READING...');
-              setTimeout(() => {
-                setQrStatus('✓ QR DETECTED');
-                setTimeout(() => { setModalType(null); setQrStatus('SCANNING'); }, 1200);
-              }, 1200);
-            }}
-            className="w-full bg-blue border-2 border-[#4A7A8D] rounded-lg py-3 font-mono text-xs font-bold tracking-[0.1em] uppercase text-cream cursor-pointer hover:opacity-90 transition-opacity"
-          >
-            [ SIMULATE_QR_DETECT ]
-          </button>
+          {qrInputMode === 'camera' ? (
+            <div className="py-8 text-center">
+              <div className="font-mono text-xs text-sand/60">CAMERA_MODE // COMING_SOON</div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <label className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-sand block mb-1.5">
+                  ACCESS_KEY (44_DIGITS)
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={44}
+                  value={manualChave}
+                  onChange={(e) => setManualChave(e.target.value.replace(/\D/g, ''))}
+                  placeholder="00000000000000000000000000000000000000000000"
+                  className="w-full bg-panel border border-border-custom rounded-lg px-3 py-2.5 font-mono text-sm text-cream placeholder:text-panel2 focus:border-blue focus:outline-none"
+                />
+                <div className="font-mono text-[9px] text-panel2 mt-1">
+                  {manualChave.length}/44 digits
+                </div>
+              </div>
+              <button
+                onClick={handleManualChaveSubmit}
+                disabled={!/^\d{44}$/.test(manualChave)}
+                className="w-full bg-blue border border-blue rounded-lg py-2.5 font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-hull disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue/90 transition-all"
+              >
+                SUBMIT_KEY →
+              </button>
+            </div>
+          )}
         </ModalBody>
       </ModalOverlay>
 
