@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@powersync/react";
 import Badge from "@/components/badge";
 import SectionLabel from "@/components/section-label";
@@ -20,16 +21,8 @@ import type { UserProfile } from "@/lib/types";
 
 export default function ProfilePage() {
   const { data: session } = authClient.useSession();
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  const handleLogin = async () => {
-    setIsAuthenticating(true);
-    try {
-      await authClient.signIn.social({ provider: "google" });
-    } finally {
-      setIsAuthenticating(false);
-    }
-  };
+  
 
   const handleLogout = async () => {
     if (!confirm("End session? Local data will be cleared.")) return;
@@ -223,15 +216,20 @@ export default function ProfilePage() {
                       action: "logout" as const,
                     },
                   ]
-                : ""),
+                : [
+                    {
+                      icon: "🔐",
+                      name: "INITIATE_SESSION",
+                      color: "amber",
+                      action: "login" as const,
+                    },
+                  ]),
             ].map((action) => (
-              <div
+              <Link
                 key={action.name}
+                href="/login"
                 className="flex items-center gap-3 px-3.5 py-3 border-b border-red/20 last:border-b-0 cursor-pointer"
-                onClick={() => {
-                  if (action.action === "login") handleLogin();
-                  if (action.action === "logout") handleLogout();
-                }}
+                onClick={action.action === "logout" ? handleLogout : undefined}
               >
                 <span className="text-sm">{action.icon}</span>
                 <span
@@ -240,7 +238,7 @@ export default function ProfilePage() {
                   {action.name}
                 </span>
                 <span className="font-mono text-[9px] text-sand">›</span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

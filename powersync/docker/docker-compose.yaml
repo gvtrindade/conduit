@@ -19,9 +19,11 @@ services:
     volumes:
       - ../service.yaml:/config/service.yaml
       - ../sync-config.yaml:/config/sync-config.yaml
+      - /home/gabriel/.local/share/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert.crt:ro
     environment:
       POWERSYNC_CONFIG_PATH: /config/service.yaml
       NODE_OPTIONS: --max-old-space-size=1000
+      NODE_EXTRA_CA_CERTS: /usr/local/share/ca-certificates/mkcert.crt
     healthcheck:
       test:
         - 'CMD'

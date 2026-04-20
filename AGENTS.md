@@ -13,3 +13,6 @@ Do not run "bun dev" or "bun --bun next dev" or "bun --bun next start".
 This project uses Powersync as the database, all CRUD operations should be done using its pattern.
 
 Do not connect to the database in port 5434 for tests.
+
+## Task Management
+Use `/dex` to break down complex work, track progress across sessions, and coordinate multi-step implementations.

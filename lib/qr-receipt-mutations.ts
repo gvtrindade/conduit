@@ -8,7 +8,7 @@ interface AbstractPowerSyncDatabase {
 }
 
 async function callNFCEApi(receiptId: string, key: string): Promise<void> {
-  const apiUrl = process.env.NEXT_PUBLIC_NFCE_API_URL;
+  const apiUrl = process.env.NEXT_PUBLIC_NFCE_API_URL || "http://192.168.1.9:9090";
   if (!apiUrl) {
     return;
   }

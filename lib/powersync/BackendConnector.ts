@@ -13,7 +13,7 @@ export class Connector implements PowerSyncBackendConnector {
 
   constructor() {
     this.backendUrl =
-      process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000";
+      process.env.NEXT_PUBLIC_PROJECT_URL || "https://localhost:3000";
     this.powersyncUrl =
       process.env.NEXT_PUBLIC_POWERSYNC_URL || "http://localhost:8080";
     this.powersyncToken = process.env.NEXT_PUBLIC_POWERSYNC_TOKEN || "changeme";
@@ -27,7 +27,7 @@ export class Connector implements PowerSyncBackendConnector {
     }
 
     return {
-      endpoint: "http://localhost:8080",
+      endpoint: this.powersyncUrl,
       token: data.token,
     };
   }

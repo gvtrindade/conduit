@@ -26,8 +26,8 @@ sync_config:
   path: sync-config.yaml
 
 client_auth:
-  jwks_uri: http://192.168.1.9:3000/api/auth/jwks
-  audience: ["http://localhost:3000"]
+  jwks_uri: https://192.168.1.9:3000/api/auth/jwks
+  audience: ["https://192.168.1.9:3000", "https://localhost:3000"]
 api:
   tokens:
     - dev-token-do-not-use-in-production

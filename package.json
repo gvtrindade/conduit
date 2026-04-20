@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev",
+    "dev:https": "bun --bun server-https.js",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "lint": "eslint",
@@ -14,6 +15,7 @@
     "@journeyapps/wa-sqlite": "^1.5.0",
     "@powersync/react": "^1.9.1",
     "@powersync/web": "^1.37.0",
+    "@yudiel/react-qr-scanner": "^2.5.1",
     "better-auth": "^1.6.2",
     "html5-qrcode": "^2.3.8",
     "next": "16.2.1",

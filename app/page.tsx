@@ -19,6 +19,7 @@ import { createReceipt } from '@/lib/receipt-mutations';
 import { createPendingReceiptFromQR } from '@/lib/qr-receipt-mutations';
 import { authClient } from '@/lib/auth-client';
 import QRScanner from '@/components/qr-scanner';
+import Html5QrcodePlugin from '@/components/qr-code-plugin';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -67,14 +68,24 @@ export default function DashboardPage() {
       showToast('⊘', 'LOGIN_REQUIRED // PLEASE_SIGN_IN');
       return;
     }
-    showToast('⏳', 'PROCESSING_KEY // ' + manualChave.slice(0, 8) + '...');
-    const receiptId = await createPendingReceiptFromQR(powerSync, manualChave, userId);
-    showToast('✓', 'RECEIPT_CREATED // PENDING');
-    setModalType(null);
+    const receiptId = await chaveSubmit(manualChave);
     setManualChave('');
     setQrInputMode('camera');
     router.push(`/receipts/${receiptId}`);
   };
+
+  const handleQrChaveSubmit = async () => {
+    const receiptId = await chaveSubmit(manualChave);
+    router.push(`/receipts/${receiptId}`);
+  }
+
+  const chaveSubmit = async (chave: string) => {
+    showToast('⏳', 'PROCESSING_KEY // ' + chave.slice(0, 8) + '...');
+    const receiptId = await createPendingReceiptFromQR(powerSync, chave, userId);
+    showToast('✓', 'RECEIPT_CREATED // PENDING');
+    setModalType(null);
+    return receiptId;
+  }
 
   const lastReceipt = receipts[0];
   const recentReceipts = receipts.slice(1, 11);
@@ -232,7 +243,10 @@ export default function DashboardPage() {
           </div>
           {qrInputMode === 'camera' ? (
             <div className="py-8 text-center">
-              <div className="font-mono text-xs text-sand/60">CAMERA_MODE // COMING_SOON</div>
+              <QRScanner
+                onScanSuccess={handleQrChaveSubmit}
+                onError={(error) => showToast('⊘', error)}
+              />
             </div>
           ) : (
             <div className="space-y-3">
