@@ -74,10 +74,10 @@ export default function DashboardPage() {
     router.push(`/receipts/${receiptId}`);
   };
 
-  const handleQrChaveSubmit = async () => {
-    const receiptId = await chaveSubmit(manualChave);
+  const handleQrChaveSubmit = async (chave: string) => {
+    const receiptId = await chaveSubmit(chave);
     router.push(`/receipts/${receiptId}`);
-  }
+  };
 
   const chaveSubmit = async (chave: string) => {
     showToast('⏳', 'PROCESSING_KEY // ' + chave.slice(0, 8) + '...');

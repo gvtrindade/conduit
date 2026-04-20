@@ -72,7 +72,7 @@ export default function QRScanner({ onScanSuccess, onError, onClose }: QRScanner
     
     console.log('[QR] rawValue:', decodedText);
     const chave = extractChaveAcesso(decodedText);
-    console.log('[QR] Chave:', chave);
+    console.error('[QR] Chave:', chave);
     
     if (chave) {
       setScanning(false);
