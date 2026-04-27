@@ -15,6 +15,7 @@
     "@journeyapps/wa-sqlite": "^1.5.0",
     "@powersync/react": "^1.9.1",
     "@powersync/web": "^1.37.0",
+    "@serwist/next": "^9.5.7",
     "@yudiel/react-qr-scanner": "^2.5.1",
     "better-auth": "^1.6.2",
     "html5-qrcode": "^2.3.8",

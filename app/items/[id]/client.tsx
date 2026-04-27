@@ -39,7 +39,7 @@ function formatDbDate(dateStr: string | null): string {
   return `${y}.${m}.${day}`;
 }
 
-export default function ItemDetailClient({ id }: { id: string }) {
+export default function ItemDetailClient({ id, userId }: { id: string; userId: string | null }) {
   const router = useRouter();
   const [chartPeriod, setChartPeriod] = useState('6M');
   const [isEditing, setIsEditing] = useState(false);
@@ -138,7 +138,7 @@ export default function ItemDetailClient({ id }: { id: string }) {
         setShowDeleteConfirm(false);
         return;
       }
-      await deleteItem(powerSync, id);
+      await deleteItem(powerSync, id, userId ?? null);
       router.push('/items');
     } catch {
       showToast('⊘', 'DELETE_FAILED');
@@ -197,7 +197,7 @@ export default function ItemDetailClient({ id }: { id: string }) {
                 primary_tag_id: data.primary_tag_id || null,
                 primary_tag_custom: data.primary_tag_custom || null,
                 unit: data.unit || null,
-              });
+              }, userId ?? null);
               showToast('✦', 'ITEM_UPDATED');
               setIsEditing(false);
             }}

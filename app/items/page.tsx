@@ -223,6 +223,7 @@ export default function ItemsPage() {
               await createItem(powerSync, {
                 name: data.name,
                 codename: data.codename || null,
+                code: null,
                 emoji: data.emoji || null,
                 category_id: data.category,
                 category_custom: data.category_custom || null,

@@ -31,11 +31,9 @@ const tagStyles: Record<string, string> = {
   PRICE_SPIKE: 'text-red bg-red/10 border-red/25',
 };
 
-export default function ReceiptDetailClient({ id }: { id: string }) {
+export default function ReceiptDetailClient({ id, userId }: { id: string; userId: string | null }) {
   const router = useRouter();
   const powerSync = usePowerSync();
-  const { data: session } = authClient.useSession();
-  const userId = session?.user?.id ?? null;
   const [showMenu, setShowMenu] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -168,6 +166,7 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
                   date: data.date,
                   total,
                   itemCount,
+                  userId: userId,
                   originalItems: receipt.items.map(item => ({
                     receiptItemId: item.id ?? '',
                     qty: item.qty,
@@ -190,12 +189,13 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
             }}
             onCancel={() => setIsEditing(false)}
             onCreateMerchant={async (name, emoji) => {
-              return await createMerchant(powerSync, { name, emoji, created_at: null });
+              return await createMerchant(powerSync, { name, emoji, user_id: userId, created_at: null });
             }}
             onCreateItem={async (data) => {
               return await createItem(powerSync, {
                 name: data.name,
                 codename: null,
+                code: null,
                 emoji: null,
                 category_id: null,
                 category_custom: null,
@@ -346,7 +346,7 @@ export default function ReceiptDetailClient({ id }: { id: string }) {
               onClick={async () => {
                 setIsDeleting(true);
                 try {
-                  await deleteReceipt(powerSync, id);
+                  await deleteReceipt(powerSync, id, userId);
                   setShowDelete(false);
                   showToast('🗑', 'RECEIPT PURGED // LOG UPDATED');
                   router.push('/');

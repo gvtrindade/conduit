@@ -65,6 +65,7 @@ export interface SaveReceiptEditsParams {
   date: string;
   total: number;
   itemCount: number;
+  userId: string | null;
   originalItems: OriginalItem[];
   submittedItems: SubmittedItem[];
 }
@@ -86,7 +87,7 @@ export async function saveReceiptEdits(
     receipt_date: params.date || null,
     total: params.total,
     item_count: params.itemCount,
-  });
+  }, params.userId);
 
   const diff = computeItemDiff(params.originalItems, params.submittedItems);
 

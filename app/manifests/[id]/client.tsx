@@ -24,7 +24,7 @@ import { updateManifest, activateManifest, completeManifest, archiveManifest, re
 
 const MANIFEST_TYPES = ['WEEKLY', 'BULK', 'MONTHLY', 'QUICK', 'TARGETED', 'CUSTOM'] as const;
 
-export default function ManifestDetailClient({ id }: { id: string }) {
+export default function ManifestDetailClient({ id, userId }: { id: string; userId: string | null }) {
   const router = useRouter();
   const powerSync = usePowerSync();
   const { toast, showToast, hideToast } = useToast();
@@ -103,13 +103,13 @@ export default function ManifestDetailClient({ id }: { id: string }) {
     if (!mft || !editable) return;
     setIsEditingTitle(false);
     if (titleValue === mft.title) return;
-    await updateManifest(powerSync, mft.id, { title: titleValue || null });
+    await updateManifest(powerSync, mft.id, { title: titleValue || null }, userId);
   }, [mft, editable, titleValue, powerSync]);
 
   const handleTypeChange = useCallback(async (type: string) => {
     if (!mft || !editable) return;
     if (type === mft.type) return;
-    await updateManifest(powerSync, mft.id, { type });
+    await updateManifest(powerSync, mft.id, { type }, userId);
   }, [mft, editable, powerSync]);
 
   const handleRemoveItem = useCallback(async (itemId: string) => {
@@ -126,7 +126,7 @@ export default function ManifestDetailClient({ id }: { id: string }) {
     if (!mft || isDeleting) return;
     setIsDeleting(true);
     try {
-      await deleteManifest(powerSync, mft.id);
+      await deleteManifest(powerSync, mft.id, userId);
       router.push('/manifests');
     } catch (error) {
       showToast('⊗', 'DELETE_FAILED');

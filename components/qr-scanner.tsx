@@ -82,21 +82,21 @@ export default function QRScanner({ onScanSuccess, onError, onClose }: QRScanner
       }, 100);
     } else {
       if (decodedText.includes('fazenda.df.gov.br')) {
-        onError?.(`INVALID_QR_CODE // CHAVE_DE_ACESSO_NOT_FOUND`);
+        onError?.(new Error(`INVALID_QR_CODE // CHAVE_DE_ACESSO_NOT_FOUND`));
       } else {
-        onError?.(`INVALID_QR_CODE // NOT_NFE`);
+        onError?.(new Error(`INVALID_QR_CODE // NOT_NFE`));
       }
     }
   };
 
-  const handleError = (error: Error) => {
-    const message = error?.message ?? 'UNKNOWN_ERROR';
+  const handleError = (error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
     if (message.includes('Permission') || message.includes('NotAllowed')) {
-      onError?.('CAMERA_PERMISSION_DENIED');
+      onError?.(new Error('CAMERA_PERMISSION_DENIED'));
     } else if (message.includes('not found') || message.includes('NotFound')) {
-      onError?.('CAMERA_NOT_AVAILABLE');
+      onError?.(new Error('CAMERA_NOT_AVAILABLE'));
     } else {
-      onError?.(message);
+      onError?.(new Error(message));
     }
   };
 

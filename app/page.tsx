@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@powersync/react';
 import { usePowerSync } from '@powersync/react';
 import Badge from '@/components/badge';
@@ -19,7 +19,6 @@ import { createReceipt } from '@/lib/receipt-mutations';
 import { createPendingReceiptFromQR } from '@/lib/qr-receipt-mutations';
 import { authClient } from '@/lib/auth-client';
 import QRScanner from '@/components/qr-scanner';
-import Html5QrcodePlugin from '@/components/qr-code-plugin';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -29,7 +28,20 @@ export default function DashboardPage() {
   const { toast, showToast, hideToast } = useToast();
   const powerSync = usePowerSync();
   const { data: session } = authClient.useSession();
+  const [isOnline, setIsOnline] = useState(true);
   const userId = session?.user?.id ?? null;
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const { data: rawReceipts, isLoading } = useQuery(RECEIPTS_WITH_MERCHANT_QUERY);
   const { data: rawMerchants } = useQuery("SELECT id, name, emoji FROM merchants ORDER BY name");
@@ -197,17 +209,20 @@ export default function DashboardPage() {
               onClick={() => {
                 if (!userId) {
                   showToast('⊘', 'LOGIN_REQUIRED // PLEASE_SIGN_IN');
+                } else if (!isOnline) {
+                  showToast('⊘', 'OFFLINE // CANNOT_SCAN');
                 } else {
                   setModalType('qr');
                 }
               }}
               className={`bg-panel border rounded-xl py-4 px-2 flex flex-col items-center gap-2 transition-all ${
-                userId ? 'border-blue/35 text-blue hover:border-blue hover:bg-blue/8 cursor-pointer' : 'border-sand/20 text-sand/40 cursor-not-allowed'
+                userId && isOnline ? 'border-blue/35 text-blue hover:border-blue hover:bg-blue/8 cursor-pointer' : 'border-sand/20 cursor-not-allowed'
               }`}
+              disabled={!userId || !isOnline}
             >
-              <span className="text-2xl leading-none">▦</span>
-              <span className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase">QR CODE</span>
-              <span className="font-mono text-[9px] text-sand/60">Read ticket</span>
+              <span className={`text-2xl leading-none ${userId && isOnline ? 'text-blue' : 'text-sand/40'}`}>▦</span>
+              <span className={`font-mono text-[10px] font-bold tracking-[0.1em] uppercase ${userId && isOnline ? 'text-blue' : 'text-sand/40'}`}>QR CODE</span>
+              <span className="font-mono text-[9px] text-sand/60">{!isOnline ? 'Offline' : 'Read ticket'}</span>
             </button>
           </div>
         </ModalBody>
@@ -245,7 +260,7 @@ export default function DashboardPage() {
             <div className="py-8 text-center">
               <QRScanner
                 onScanSuccess={handleQrChaveSubmit}
-                onError={(error) => showToast('⊘', error)}
+                onError={(error) => showToast('⊘', error.message)}
               />
             </div>
           ) : (
@@ -320,6 +335,7 @@ export default function DashboardPage() {
               return await createItem(powerSync, {
                 name: data.name,
                 codename: null,
+                code: null,
                 emoji: null,
                 category_id: null,
                 category_custom: null,

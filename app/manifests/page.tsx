@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useMemo } from 'react';
 import { useQuery, usePowerSync } from '@powersync/react';
+import { authClient } from '@/lib/auth-client';
 import Badge from '@/components/badge';
 import SectionLabel from '@/components/section-label';
 import ProgressBar from '@/components/progress-bar';
@@ -25,6 +26,8 @@ export default function ManifestsPage() {
   const powerSync = usePowerSync();
   const [filter, setFilter] = useState('all');
   const { toast, showToast, hideToast } = useToast();
+  const { data: session } = authClient.useSession();
+  const userId = session?.user?.id ?? null;
 
   const currentValue = "kCr";  
   const { data: rawManifests, isLoading } = useQuery(MANIFESTS_LIST_QUERY);
@@ -183,7 +186,7 @@ export default function ManifestsPage() {
       {/* FAB */}
       <button
         onClick={async () => {
-          const id = await createManifest(powerSync);
+          const id = await createManifest(powerSync, userId);
           router.push(`/manifests/${id}`);
         }}
         className="fixed bottom-20 right-5 w-[50px] h-[50px] rounded-3xl bg-amber border-2 border-[#C07830] flex items-center justify-center text-2xl cursor-pointer z-50 text-hull hover:opacity-90 transition-opacity"
