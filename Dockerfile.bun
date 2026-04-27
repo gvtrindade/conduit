@@ -27,13 +27,13 @@ RUN bun run postinstall
 
 FROM oven/bun:1 AS runner 
 
-COPY --from=builder --chown=bun:bun /app/public ./public
+COPY --from=builder --chown=bun:bun /public ./public
 
 RUN mkdir .next
 RUN chown bun:bun .next
 
-COPY --from=builder --chown=bun:bun /app/.next/standalone ./
-COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
+COPY --from=builder --chown=bun:bun /.next/standalone ./
+COPY --from=builder --chown=bun:bun /.next/static ./.next/static
 
 USER bun
 
