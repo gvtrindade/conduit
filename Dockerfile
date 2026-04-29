@@ -43,6 +43,7 @@ ENV PG_USER=""
 ENV PG_PASSWORD=""
 ENV PG_DATABASE=""
 ENV NFCE_WEBHOOK_API_KEY=""
+ENV HOSTNAME="0.0.0.0"
 
 
 COPY --from=builder --chown=bun:bun /app/public ./public
@@ -55,6 +56,5 @@ COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
 
 USER bun
 
-ENV HOSTNAME="0.0.0.0"
 EXPOSE 3000
-CMD ["bun", "server.js"]
+CMD ["node", "server.js"]
