@@ -37,5 +37,6 @@ COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
 
 USER bun
 
+ENV HOSTNAME="0.0.0.0"
 EXPOSE 3000
 CMD ["bun", "server.js"]
