@@ -2,20 +2,24 @@ import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
+const db = new Pool({
+  host: process.env.PG_HOST || "localhost",
+  port: parseInt(process.env.PG_PORT || "5434"),
+  database: process.env.PG_DATABASE || "postgres",
+  user: process.env.PG_USER || "postgres",
+  password: process.env.PG_PASSWORD || "changeme",
+});
+
 export const auth = betterAuth({
-  baseURL: process.env.NEXT_PUBLIC_PROJECT_URL || "https://localhost:3000",
+  baseURL: process.env.NEXT_PUBLIC_PROJECT_URL,
   trustedOrigins: [
     "https://localhost:3000",
     "https://192.168.1.9:3000",
     "http://localhost:8080",
+    "http://192.168.1.17:8080",
+    "https://conduit.trindade.dev"
   ],
-  database: new Pool({
-    host: "localhost",
-    port: 5434,
-    database: "postgres",
-    user: "postgres",
-    password: "changeme",
-  }),
+  database: db,
   emailAndPassword: {
     enabled: true,
   },
