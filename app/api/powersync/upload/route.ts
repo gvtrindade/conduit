@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
-import { auth } from "@/lib/auth";
+import { auth, db } from "@/lib/auth";
 import { headers } from "next/headers";
+import { NextRequest, NextResponse } from "next/server";
 
 // Validation: name must be a non-empty string
 function isValidName(name: unknown): name is string {
@@ -27,15 +26,6 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string> = {
   ACTIVE: "DONE",
   DONE: "ARCHIVED",
 };
-
-const db = new Pool({
-  host: "localhost",
-  port: 5434,
-  database: "postgres",
-  user: "postgres",
-  password: "changeme",
-});
-
 
 // Validate foreign key fields exist in database
 async function isValidForeignKey(

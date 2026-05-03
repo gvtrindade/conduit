@@ -1,13 +1,5 @@
+import { db } from "@/lib/auth";
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
-
-const db = new Pool({
-  host: process.env.PG_HOST || "localhost",
-  port: parseInt(process.env.PG_PORT || "5434"),
-  database: process.env.PG_DATABASE || "postgres",
-  user: process.env.PG_USER || "postgres",
-  password: process.env.PG_PASSWORD || "changeme",
-});
 
 function isValidApiKey(key: string): boolean {
   const validKey = process.env.NFCE_WEBHOOK_API_KEY;

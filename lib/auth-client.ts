@@ -5,7 +5,7 @@ const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     return window.location.origin;
   }
-  return process.env.NEXT_PUBLIC_PROJECT_URL || 'https://localhost:3000';
+  return process.env.NEXT_PUBLIC_PROJECT_URL;
 };
 
 export const authClient = createAuthClient({

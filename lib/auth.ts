@@ -2,7 +2,7 @@ import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
-const db = new Pool({
+export const db = new Pool({
   host: process.env.PG_HOST || "localhost",
   port: parseInt(process.env.PG_PORT || "5434"),
   database: process.env.PG_DATABASE || "postgres",
