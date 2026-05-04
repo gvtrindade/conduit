@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import withSerwist from "@serwist/next";
+import { withSerwist } from "@serwist/turbopack";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -10,12 +10,4 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.1.9", "localhost"],
 };
 
-const withSerwistConfig = withSerwist({
-  swSrc: "app/sw.ts",
-  swDest: "public/sw.js",
-  scope: "/",
-  reloadOnOnline: true,
-  disable: process.env.NODE_ENV === "development",
-});
-
-export default withSerwistConfig(nextConfig);
+export default withSerwist(nextConfig);
