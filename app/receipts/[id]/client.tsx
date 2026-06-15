@@ -11,6 +11,7 @@ import ModalOverlay from '@/components/modal-overlay';
 import Toast, { useToast } from '@/components/toast';
 import { ReceiptEditForm } from '@/components/receipt-edit-form';
 import { deleteReceipt, updateReceipt } from '@/lib/receipt-mutations';
+import { reprocessReceipt } from '@/lib/qr-receipt-mutations';
 import { deleteReceiptItem, updateReceiptItem, addReceiptItem } from '@/lib/receipt-item-mutations';
 import { createMerchant } from '@/lib/merchant-mutations';
 import { createItem } from '@/lib/item-mutations';
@@ -105,19 +106,32 @@ export default function ReceiptDetailClient({ id, userId }: { id: string; userId
             { icon: '📤', label: 'Edit Data' },
             { icon: '📤', label: 'Export PDF' },
             { icon: '📋', label: 'Copy Link' },
-            { icon: '🔁', label: 'Re-Sync' },
+            { icon: '🔁', label: 'Reprocess', disabled: receipt.status === 'OK' },
           ].map(item => (
             <div
               key={item.label}
-              onClick={() => {
+              onClick={async () => {
                 if (item.label === 'Edit Data') {
                   handleEditData();
+                } else if (item.label === 'Reprocess') {
+                  setShowMenu(false);
+                  showToast('🔁', 'REPROCESSING...');
+                  try {
+                    await reprocessReceipt(powerSync, id);
+                    showToast('✦', 'REPROCESSING // STATUS UPDATED');
+                  } catch {
+                    showToast('⚠️', 'REPROCESS_FAILED');
+                  }
                 } else {
                   setShowMenu(false);
                   showToast(item.icon, item.label.toUpperCase());
                 }
               }}
-              className="flex items-center gap-2.5 px-4 py-2.5 font-mono text-[10px] font-bold tracking-[0.08em] uppercase text-sand cursor-pointer border-b border-border-custom last:border-b-0 hover:bg-panel2 hover:text-cream transition-colors"
+              className={`flex items-center gap-2.5 px-4 py-2.5 font-mono text-[10px] font-bold tracking-[0.08em] uppercase cursor-pointer border-b border-border-custom last:border-b-0 transition-colors ${
+                item.disabled
+                  ? 'text-panel2 cursor-not-allowed'
+                  : 'text-sand hover:bg-panel2 hover:text-cream'
+              }`}
             >
               <span className="text-xs">{item.icon}</span> {item.label}
             </div>

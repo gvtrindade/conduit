@@ -7,7 +7,7 @@ interface AbstractPowerSyncDatabase {
   execute(sql: string, params?: unknown[]): Promise<unknown>;
 }
 
-async function callNFCEApi(receiptId: string, key: string): Promise<void> {
+export async function callNFCEApi(receiptId: string, key: string): Promise<void> {
   const apiUrl = process.env.NEXT_PUBLIC_NFCE_API_URL || "http://192.168.1.9:9090";
   if (!apiUrl) {
     return;
@@ -21,7 +21,7 @@ async function callNFCEApi(receiptId: string, key: string): Promise<void> {
 
     const body = JSON.stringify({
       receiptId,
-      key,
+      chave: key,
       projectUrl,
     });
 
@@ -34,11 +34,14 @@ async function callNFCEApi(receiptId: string, key: string): Promise<void> {
       signal: controller.signal,
     });
 
-    console.log(res);
+    if (!res.ok) {
+      const text = await res.text().catch(() => 'unknown');
+      console.error(`NFCe API returned ${res.status}: ${text}`);
+    }
 
     clearTimeout(timeoutId);
   } catch (err) {
-    console.error(err);
+    console.error('NFCe API call failed:', err);
   }
 }
 
@@ -65,6 +68,7 @@ export async function createPendingReceiptFromQR(
     linked_manifest_id: null,
     processed_at: null,
     created_at: new Date().toISOString(),
+    nfce: chave,
   };
 
   const receiptId = await createReceipt(db, receiptData);
@@ -72,4 +76,25 @@ export async function createPendingReceiptFromQR(
   callNFCEApi(receiptId, chave);
 
   return receiptId;
+}
+
+export async function reprocessReceipt(
+  db: AbstractPowerSyncDatabase,
+  receiptId: string,
+): Promise<void> {
+  const result = await db.execute(
+    "SELECT nfce FROM receipts WHERE id = ?",
+    [receiptId],
+  ) as { rows: { nfce: string | null }[] };
+  const row = result.rows[0];
+  if (!row || !row.nfce) {
+    throw new Error("Cannot reprocess: no nfce key found for receipt");
+  }
+
+  await db.execute(
+    "UPDATE receipts SET status = ? WHERE id = ?",
+    ["PENDING", receiptId],
+  );
+
+  callNFCEApi(receiptId, row.nfce);
 }

@@ -92,6 +92,7 @@ const receipts = new Table(
     linked_manifest_id: column.text,
     processed_at: column.text,
     created_at: column.text,
+    nfce: column.text,
   },
   { indexes: {} },
 );

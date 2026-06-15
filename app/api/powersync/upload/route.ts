@@ -301,8 +301,8 @@ export async function POST(request: NextRequest) {
         await client.query("BEGIN");
 
         await client.query(
-          `INSERT INTO receipts (id, merchant_id, receipt_date, total, item_count, status, savings, linked_manifest_id, processed_at, user_id, created_at)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          `INSERT INTO receipts (id, merchant_id, receipt_date, total, item_count, status, savings, linked_manifest_id, processed_at, user_id, created_at, nfce)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
   ON CONFLICT (id) DO UPDATE SET
     merchant_id = EXCLUDED.merchant_id,
     receipt_date = EXCLUDED.receipt_date,
@@ -312,7 +312,8 @@ export async function POST(request: NextRequest) {
     savings = EXCLUDED.savings,
     linked_manifest_id = EXCLUDED.linked_manifest_id,
     processed_at = EXCLUDED.processed_at,
-    user_id = EXCLUDED.user_id`,
+    user_id = EXCLUDED.user_id,
+    nfce = EXCLUDED.nfce`,
           [
             id,
             receiptData.merchant_id,
@@ -325,6 +326,7 @@ export async function POST(request: NextRequest) {
             receiptData?.processed_at ?? null,
             userId,
             createdAt,
+            receiptData?.nfce ?? null,
           ],
         );
 

@@ -96,12 +96,20 @@ export async function POST(request: NextRequest) {
 
   const client = await db.connect();
   try {
-    const receiptResult = await client.query(
-      "SELECT id, merchant_id, user_id FROM receipts WHERE id = $1",
-      [receiptId]
-    );
+    // Retry loop to handle race condition with PowerSync async upload
+    let receiptResult;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      receiptResult = await client.query(
+        "SELECT id, merchant_id, user_id FROM receipts WHERE id = $1",
+        [receiptId]
+      );
+      if (receiptResult.rowCount !== null && receiptResult.rowCount > 0) break;
+      if (attempt < 4) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
 
-    if (receiptResult.rowCount === null || receiptResult.rowCount === 0) {
+    if (!receiptResult || receiptResult.rowCount === null || receiptResult.rowCount === 0) {
       return NextResponse.json({ error: "Receipt not found" }, { status: 404 });
     }
 

@@ -22,6 +22,7 @@ export interface ReceiptCreateData {
   linked_manifest_id: string | null;
   processed_at: string | null;
   created_at: string | null;
+  nfce?: string | null;
   receipt_items?: ReceiptItemCreateData[];
 }
 
@@ -43,8 +44,9 @@ export async function createReceipt(
       user_id,
       linked_manifest_id,
       processed_at,
-      created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      created_at,
+      nfce
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
   const params = [
@@ -59,6 +61,7 @@ export async function createReceipt(
     data.linked_manifest_id,
     data.processed_at,
     data.created_at,
+    data.nfce ?? null,
   ];
 
   await db.execute(sql, params);
@@ -104,6 +107,7 @@ export interface ReceiptUpdateData {
   savings?: number | null;
   linked_manifest_id?: string | null;
   processed_at?: string | null;
+  nfce?: string | null;
 }
 
 export async function updateReceipt(
@@ -124,6 +128,7 @@ export async function updateReceipt(
     "savings",
     "linked_manifest_id",
     "processed_at",
+    "nfce",
   ] as const;
 
   for (const field of updatableFields) {

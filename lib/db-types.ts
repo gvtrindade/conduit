@@ -83,6 +83,7 @@ export interface DbReceipt {
   linked_manifest_id: string | null;
   processed_at: string | null;
   created_at: string;
+  nfce: string | null;
 }
 
 export interface DbReceiptItem {
