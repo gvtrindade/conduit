@@ -1,51 +1,77 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState, useMemo } from 'react';
-import { useQuery, usePowerSync } from '@powersync/react';
-import { authClient } from '@/lib/auth-client';
-import Badge from '@/components/badge';
-import SectionLabel from '@/components/section-label';
-import ProgressBar from '@/components/progress-bar';
-import CrewAvatars from '@/components/crew-avatars';
-import Toast, { useToast } from '@/components/toast';
-import { MANIFESTS_LIST_QUERY, mapDbManifestToManifestListItem, type DbManifestListRow } from '@/lib/manifest-queries';
-import { createManifest } from '@/lib/manifest-mutations';
-import type { Manifest } from '@/lib/types';
+import Badge from "@/components/badge";
+import ProgressBar from "@/components/progress-bar";
+import SectionLabel from "@/components/section-label";
+import Toast, { useToast } from "@/components/toast";
+import { authClient } from "@/lib/auth-client";
+import { createManifest } from "@/lib/manifest-mutations";
+import {
+  MANIFESTS_LIST_QUERY,
+  mapDbManifestToManifestListItem,
+  type DbManifestListRow,
+} from "@/lib/manifest-queries";
+import type { Manifest } from "@/lib/types";
+import { usePowerSync, useQuery } from "@powersync/react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 
-const statusColors: Record<string, { stripe: string; border: string; ring: string }> = {
-  active: { stripe: 'bg-green', border: 'border-green/40', ring: 'shadow-[0_0_0_0_rgba(120,168,144,0)] animate-[activering_3s_ease_infinite]' },
-  draft: { stripe: 'bg-blue', border: 'border-blue/30', ring: '' },
-  done: { stripe: 'bg-sand', border: 'border-border-custom', ring: 'opacity-75' },
-  archived: { stripe: 'bg-panel2', border: 'border-border-custom', ring: 'opacity-45' },
+const statusColors: Record<
+  string,
+  { stripe: string; border: string; ring: string }
+> = {
+  active: {
+    stripe: "bg-green",
+    border: "border-green/40",
+    ring: "shadow-[0_0_0_0_rgba(120,168,144,0)] animate-[activering_3s_ease_infinite]",
+  },
+  draft: { stripe: "bg-blue", border: "border-blue/30", ring: "" },
+  done: {
+    stripe: "bg-sand",
+    border: "border-border-custom",
+    ring: "opacity-75",
+  },
+  archived: {
+    stripe: "bg-panel2",
+    border: "border-border-custom",
+    ring: "opacity-45",
+  },
 };
 
 export default function ManifestsPage() {
   const router = useRouter();
   const powerSync = usePowerSync();
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState("all");
   const { toast, showToast, hideToast } = useToast();
   const { data: session } = authClient.useSession();
   const userId = session?.user?.id ?? null;
 
-  const currentValue = "kCr";  
+  const currentValue = "kCr";
   const { data: rawManifests, isLoading } = useQuery(MANIFESTS_LIST_QUERY);
 
   const manifests: Manifest[] = useMemo(
-    () => (rawManifests as unknown as DbManifestListRow[] || []).map(mapDbManifestToManifestListItem),
-    [rawManifests]
+    () =>
+      ((rawManifests as unknown as DbManifestListRow[]) || []).map(
+        mapDbManifestToManifestListItem,
+      ),
+    [rawManifests],
   );
 
-  const filtered = filter === 'all' ? manifests : manifests.filter(m => m.status === filter);
-  const activeCount = manifests.filter(m => m.status === 'active').length;
+  const filtered =
+    filter === "all" ? manifests : manifests.filter((m) => m.status === filter);
+  const activeCount = manifests.filter((m) => m.status === "active").length;
 
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">SYNCING_MANIFESTS</div>
-          <div className="font-mono text-[10px] text-panel2">Loading manifest data...</div>
+          <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-2">
+            SYNCING_MANIFESTS
+          </div>
+          <div className="font-mono text-[10px] text-panel2">
+            Loading manifest data...
+          </div>
         </div>
       </div>
     );
@@ -56,30 +82,37 @@ export default function ManifestsPage() {
       <div className="flex-1 overflow-y-auto scrollbar-none">
         {/* Sticky Header */}
         <div className="sticky top-0 z-60 bg-hull border-b border-border-custom">
-          <div className="px-5 py-2.5 flex items-center justify-between">
-            <div className="font-heading text-[13px] font-bold tracking-[0.12em] uppercase text-amber">
-              [ MANIFEST <span className="text-sand font-normal">//</span> REGISTRY ]
-            </div>
-            <div className="flex gap-1.5">
-              <button onClick={() => showToast('🔍', 'SEARCH // COMING SOON')} className="w-8 h-8 rounded-md border border-border-custom bg-panel flex items-center justify-center text-xs cursor-pointer text-sand hover:border-sand hover:text-cream transition-all">🔍</button>
-              <button onClick={() => showToast('⇅', 'SORT // COMING SOON')} className="w-8 h-8 rounded-md border border-border-custom bg-panel flex items-center justify-center text-xs cursor-pointer text-sand hover:border-sand hover:text-cream transition-all">⇅</button>
-            </div>
-          </div>
-
           {/* Status Filter Tabs */}
-          <div className="flex px-5 pb-2.5 gap-1.5 overflow-x-auto scrollbar-none">
+          <div className="flex justify-center px-5 py-4 gap-1.5 overflow-x-auto scrollbar-none">
             {[
-              { key: 'all', label: `ALL (${manifests.length})`, style: 'border-amber text-amber bg-amber/8' },
-              { key: 'active', label: `● ACTIVE (${manifests.filter(m => m.status === 'active').length})`, style: 'border-green text-green bg-green/8' },
-              { key: 'draft', label: `◌ DRAFT (${manifests.filter(m => m.status === 'draft').length})`, style: 'border-blue text-blue bg-blue/8' },
-              { key: 'done', label: `✓ DONE (${manifests.filter(m => m.status === 'done').length})`, style: 'border-sand text-sand bg-sand/6' },
-              { key: 'archived', label: `⊗ ARCHIVE (${manifests.filter(m => m.status === 'archived').length})`, style: 'border-panel2 text-panel2' },
-            ].map(tab => (
+              {
+                key: "all",
+                label: `ALL (${manifests.length})`,
+                style: "border-amber text-amber bg-amber/8",
+              },
+              {
+                key: "active",
+                label: `● ACTIVE (${manifests.filter((m) => m.status === "active").length})`,
+                style: "border-green text-green bg-green/8",
+              },
+              {
+                key: "draft",
+                label: `◌ DRAFT (${manifests.filter((m) => m.status === "draft").length})`,
+                style: "border-blue text-blue bg-blue/8",
+              },
+              {
+                key: "done",
+                label: `✓ DONE (${manifests.filter((m) => m.status === "done").length})`,
+                style: "border-sand text-sand bg-sand/6",
+              },
+            ].map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setFilter(tab.key)}
                 className={`font-mono text-[9px] font-bold tracking-[0.1em] uppercase px-3 py-1.5 rounded-full border-[1.5px] whitespace-nowrap cursor-pointer transition-all ${
-                  filter === tab.key ? tab.style : 'border-border-custom text-sand bg-transparent hover:text-cream hover:border-sand'
+                  filter === tab.key
+                    ? tab.style
+                    : "border-border-custom text-sand bg-transparent hover:text-cream hover:border-sand"
                 }`}
               >
                 {tab.label}
@@ -88,62 +121,74 @@ export default function ManifestsPage() {
           </div>
         </div>
 
-        {/* Fleet Summary */}
-        <div className="mx-5 mt-3 bg-panel border-2 border-border-custom rounded-2xl overflow-hidden">
-          <div className="bg-hull px-3.5 py-2 border-b border-border-custom flex items-center justify-between">
-            <span className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand">// ACTIVE_FLEET_STATUS //</span>
-            <Badge variant="green">{activeCount} LIVE</Badge>
-          </div>
-          <div className="grid grid-cols-3">
-            <div className="py-2.5 text-center border-r border-border-custom">
-              <span className="font-heading text-xl font-bold text-cream block leading-none">{activeCount}</span>
-              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">ACTIVE</span>
-            </div>
-            <div className="py-2.5 text-center border-r border-border-custom">
-              <span className="font-heading text-xl font-bold text-amber block leading-none">{manifests.reduce((s, m) => s + m.estTotal, 0)}</span>
-              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">COMBINED ESTIMATED {currentValue}</span>
-            </div>
-            <div className="py-2.5 text-center">
-              <span className="font-heading text-xl font-bold text-cream block leading-none">{manifests.length}</span>
-              <span className="font-mono text-[8px] tracking-widest uppercase text-sand block mt-1">MANIFESTS</span>
-            </div>
-          </div>
-        </div>
-
         {/* Manifest Cards */}
         <div className="px-5 pt-4">
           <SectionLabel right={`${filtered.length} ${filter.toUpperCase()}`}>
-            {filter === 'all' ? '// ACTIVE_MISSIONS //' : `// ${filter.toUpperCase()} //`}
+            {filter === "all"
+              ? "// MANIFESTS //"
+              : `// ${filter.toUpperCase()}_MANIFESTS //`}
           </SectionLabel>
           {filtered.length > 0 ? (
             <div className="flex flex-col gap-2.5">
-              {filtered.map(mft => (
-                <Link key={mft.id} href={`/manifests/${mft.id}`} className="no-underline">
-                  <div className={`bg-panel border-[1.5px] border-border-custom rounded-2xl overflow-hidden cursor-pointer hover:border-sand transition-colors relative ${statusColors[mft.status]?.ring || ''} ${statusColors[mft.status]?.border || ''}`}>
+              {filtered.map((mft) => (
+                <Link
+                  key={mft.id}
+                  href={`/manifests/${mft.id}`}
+                  className="no-underline"
+                >
+                  <div
+                    className={`bg-panel border-[1.5px] border-border-custom rounded-2xl overflow-hidden cursor-pointer hover:border-sand transition-colors relative ${statusColors[mft.status]?.ring || ""} ${statusColors[mft.status]?.border || ""}`}
+                  >
                     {/* Left status stripe */}
-                    <div className={`absolute left-0 top-0 bottom-0 w-[3px] ${statusColors[mft.status]?.stripe || 'bg-panel2'}`} style={mft.status === 'active' ? { boxShadow: '2px 0 8px rgba(120,168,144,0.4)' } : undefined} />
+                    <div
+                      className={`absolute left-0 top-0 bottom-0 w-[3px] ${statusColors[mft.status]?.stripe || "bg-panel2"}`}
+                      style={
+                        mft.status === "active"
+                          ? { boxShadow: "2px 0 8px rgba(120,168,144,0.4)" }
+                          : undefined
+                      }
+                    />
 
                     <div className="pl-4.5 pr-3.5 pt-3 pb-2 flex items-start gap-2.5">
-                      <div className="w-[38px] h-[38px] rounded-lg bg-hull border border-border-custom flex items-center justify-center text-lg flex-shrink-0 relative">
-                        {mft.status === 'active' ? '🛒' : mft.status === 'draft' ? '💊' : mft.status === 'done' ? '✅' : '🗄️'}
-                        {mft.status === 'active' && (
-                          <div className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-green border-2 border-panel" style={{ boxShadow: '0 0 6px #78A890', animation: 'pulse-dot 1.5s infinite' }} />
-                        )}
-                      </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-mono text-[8px] font-bold tracking-[0.12em] uppercase text-sand mb-0.5">MFT-{mft.id.toUpperCase()}</div>
-                        <div className="font-tight text-base font-bold text-cream uppercase tracking-[0.03em] truncate mb-1">{mft.title}</div>
+                        <div className="font-mono text-[8px] font-bold tracking-[0.12em] uppercase text-sand mb-0.5">
+                          MFT-{mft.id.toUpperCase()}
+                        </div>
+                        <div className="font-tight text-base font-bold text-cream uppercase tracking-[0.03em] truncate mb-1">
+                          {mft.title}
+                        </div>
                         <div className="flex gap-1 flex-wrap items-center">
-                          <Badge variant={mft.status === 'active' ? 'green' : mft.status === 'draft' ? 'blue' : 'sand'}>
-                            {mft.status === 'active' ? '● ACTIVE' : mft.status === 'draft' ? '◌ DRAFT' : mft.status === 'done' ? '✓ COMPLETE' : '⊗ ARCHIVED'}
+                          <Badge
+                            variant={
+                              mft.status === "active"
+                                ? "green"
+                                : mft.status === "draft"
+                                  ? "blue"
+                                  : "sand"
+                            }
+                          >
+                            {mft.status === "active"
+                              ? "● ACTIVE"
+                              : mft.status === "draft"
+                                ? "◌ DRAFT"
+                                : mft.status === "done"
+                                  ? "✓ COMPLETE"
+                                  : "⊗ ARCHIVED"}
                           </Badge>
-                          <Badge variant="sand">{mft.type}</Badge>
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <span className="font-heading text-lg font-bold text-cream block leading-none">{mft.estTotal}</span>
-                        <span className="font-mono text-[8px] text-sand block mt-0.5">EST kCr</span>
-                        <span className={`font-mono text-[9px] block mt-1 ${mft.status === 'done' ? 'text-green' : 'text-amber'}`}>{mft.confidence}</span>
+                        <span className="font-heading text-lg font-bold text-cream block leading-none">
+                          {mft.estTotal}
+                        </span>
+                        <span className="font-mono text-[8px] text-sand block mt-0.5">
+                          EST kCr
+                        </span>
+                        <span
+                          className={`font-mono text-[9px] block mt-1 ${mft.status === "done" ? "text-green" : "text-amber"}`}
+                        >
+                          {mft.confidence}
+                        </span>
                       </div>
                     </div>
 
@@ -151,13 +196,23 @@ export default function ManifestsPage() {
                     {mft.checkedCount > 0 && (
                       <div className="px-3.5 pl-4.5 mb-2">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-[8px] tracking-[0.08em] uppercase text-sand">ITEMS CHECKED</span>
-                          <span className="font-heading text-[10px] font-bold text-cream">{mft.checkedCount}</span>
+                          <span className="font-mono text-[8px] tracking-[0.08em] uppercase text-sand">
+                            ITEMS_CHECKED
+                          </span>
+                          <span className="font-heading text-[10px] font-bold text-cream">
+                            {mft.checkedCount}/{mft.items.length}
+                          </span>
                         </div>
                         <ProgressBar
                           value={mft.checkedCount}
                           max={mft.checkedCount}
-                          color={mft.status === 'active' ? 'var(--green)' : mft.status === 'done' ? 'var(--sand)' : 'var(--blue)'}
+                          color={
+                            mft.status === "active"
+                              ? "var(--green)"
+                              : mft.status === "done"
+                                ? "var(--sand)"
+                                : "var(--blue)"
+                          }
                         />
                       </div>
                     )}
@@ -168,8 +223,12 @@ export default function ManifestsPage() {
           ) : (
             <div className="px-5 py-12 text-center">
               <div className="text-4xl opacity-30 mb-3">⊘</div>
-              <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">NO_MANIFESTS_FOUND</div>
-              <div className="text-xs text-panel2">No manifests match the selected filter.</div>
+              <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">
+                NO_MANIFESTS_FOUND
+              </div>
+              <div className="text-xs text-panel2">
+                No manifests match the selected filter.
+              </div>
             </div>
           )}
         </div>
@@ -177,8 +236,12 @@ export default function ManifestsPage() {
         {filtered.length === 0 && manifests.length > 0 && (
           <div className="px-5 py-12 text-center">
             <div className="text-4xl opacity-30 mb-3">⊘</div>
-            <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">NO_MANIFESTS_FOUND</div>
-            <div className="text-xs text-panel2">No manifests match the selected filter.</div>
+            <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-sand mb-1">
+              NO_MANIFESTS_FOUND
+            </div>
+            <div className="text-xs text-panel2">
+              No manifests match the selected filter.
+            </div>
           </div>
         )}
       </div>
@@ -190,18 +253,32 @@ export default function ManifestsPage() {
           router.push(`/manifests/${id}`);
         }}
         className="fixed bottom-20 right-5 w-[50px] h-[50px] rounded-3xl bg-amber border-2 border-[#C07830] flex items-center justify-center text-2xl cursor-pointer z-50 text-hull hover:opacity-90 transition-opacity"
-        style={{ boxShadow: 'inset 0 -3px 0 rgba(0,0,0,0.3), 0 0 24px rgba(217,140,69,0.3)' }}
+        style={{
+          boxShadow:
+            "inset 0 -3px 0 rgba(0,0,0,0.3), 0 0 24px rgba(217,140,69,0.3)",
+        }}
       >
         ＋
       </button>
 
-      <Toast icon={toast.icon} message={toast.message} visible={toast.visible} onClose={hideToast} />
+      <Toast
+        icon={toast.icon}
+        message={toast.message}
+        visible={toast.visible}
+        onClose={hideToast}
+      />
 
       <style jsx>{`
         @keyframes activering {
-          0% { box-shadow: 0 0 0 0 rgba(120,168,144,0.25); }
-          60% { box-shadow: 0 0 0 5px rgba(120,168,144,0); }
-          100% { box-shadow: 0 0 0 0 rgba(120,168,144,0); }
+          0% {
+            box-shadow: 0 0 0 0 rgba(120, 168, 144, 0.25);
+          }
+          60% {
+            box-shadow: 0 0 0 5px rgba(120, 168, 144, 0);
+          }
+          100% {
+            box-shadow: 0 0 0 0 rgba(120, 168, 144, 0);
+          }
         }
       `}</style>
     </div>

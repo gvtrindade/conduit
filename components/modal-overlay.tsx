@@ -11,7 +11,7 @@ export default function ModalOverlay({ show, onClose, children }: ModalOverlayPr
 
   return (
     <div
-      className="absolute inset-0 bg-hull/92 z-[300] flex items-end p-6 rounded-[46px] backdrop-blur-sm"
+      className="fixed inset-0 bg-hull/92 z-[300] flex items-end p-6 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full bg-panel border-2 border-border-custom rounded-2xl transition-transform duration-300">

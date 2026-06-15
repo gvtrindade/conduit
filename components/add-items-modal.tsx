@@ -1,10 +1,15 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, usePowerSync } from '@powersync/react';
 import ModalOverlay, { ModalHeader, ModalBody } from './modal-overlay';
 import { ITEMS_WITH_JOINS_QUERY, mapDbItemToItem, type DbItemRow } from '@/lib/item-queries';
 import { addManifestItem } from '@/lib/manifest-mutations';
+
+interface LocalItem {
+  id: string;
+  name: string;
+}
 
 interface AddItemsModalProps {
   show: boolean;
@@ -20,8 +25,14 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
 
   const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [customItem, setCustomItem] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localItems, setLocalItems] = useState<LocalItem[]>([]);
+
+  useEffect(() => {
+    if (!show) {
+      setLocalItems([]);
+    }
+  }, [show]);
 
   const items = useMemo(
     () => (rawItems as unknown as DbItemRow[] || []).map(mapDbItemToItem),
@@ -41,6 +52,17 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
     [items, search, existingItemIds]
   );
 
+  const displayItems = useMemo(() => {
+    const localItemData = localItems.map((li) => ({
+      id: li.id,
+      name: li.name,
+      category: '',
+      lastPrice: 0,
+      isLocal: true as const,
+    }));
+    return [...filteredItems, ...localItemData];
+  }, [filteredItems, localItems]);
+
   const toggleItem = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -58,33 +80,56 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
     try {
       for (const id of selectedIds) {
         const item = items.find((i) => i.id === id);
-        if (!item) continue;
-        await addManifestItem(powerSync, manifestId, {
-          itemId: item.id,
-          itemName: item.name,
-          prevPrice: item.lastPrice || null,
-          isUnknown: false,
-        });
-      }
-
-      if (customItem.trim()) {
-        await addManifestItem(powerSync, manifestId, {
-          itemName: customItem.trim(),
-          isUnknown: true,
-        });
+        if (item) {
+          await addManifestItem(powerSync, manifestId, {
+            itemId: item.id,
+            itemName: item.name,
+            prevPrice: item.lastPrice || null,
+            isUnknown: false,
+          });
+          continue;
+        }
+        const localItem = localItems.find((li) => li.id === id);
+        if (localItem) {
+          await addManifestItem(powerSync, manifestId, {
+            itemName: localItem.name,
+            isUnknown: true,
+          });
+        }
       }
 
       setSelectedIds(new Set());
-      setCustomItem('');
       setSearch('');
+      setLocalItems([]);
       onItemsAdded();
       onClose();
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedIds, items, customItem, search, powerSync, manifestId, onItemsAdded, onClose]);
+  }, [selectedIds, items, localItems, search, powerSync, manifestId, onItemsAdded, onClose]);
 
-  const hasSelection = selectedIds.size > 0 || customItem.trim().length > 0;
+  const hasSelection = selectedIds.size > 0;
+  const selectedCount = selectedIds.size;
+
+  const handleAddNewItem = useCallback(() => {
+    if (!search.trim()) return;
+    const newItem: LocalItem = {
+      id: crypto.randomUUID(),
+      name: search.trim().toUpperCase(),
+    };
+    setLocalItems((prev) => [...prev, newItem]);
+    setSelectedIds((prev) => new Set(prev).add(newItem.id));
+    setSearch('');
+  }, [search]);
+
+  const removeLocalItem = useCallback((id: string) => {
+    setLocalItems((prev) => prev.filter((li) => li.id !== id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   return (
     <ModalOverlay show={show} onClose={onClose}>
@@ -111,12 +156,23 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
               <div className="px-3.5 py-4 text-center font-mono text-[9px] text-sand">
                 LOADING_CATALOG...
               </div>
-            ) : filteredItems.length === 0 ? (
-              <div className="px-3.5 py-4 text-center font-mono text-[9px] text-sand">
-                NO_ITEMS_FOUND
+            ) : displayItems.length === 0 ? (
+              <div className="px-3.5 py-3 text-center">
+                {search.trim() ? (
+                  <button
+                    type="button"
+                    onClick={handleAddNewItem}
+                    disabled={isSubmitting}
+                    className="w-full font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-blue bg-blue/8 border-[1.5px] border-blue/35 rounded-lg px-3 py-2.5 cursor-pointer hover:border-blue hover:bg-blue/14 transition-all"
+                  >
+                    ＋ ADD &ldquo;{search.trim().toUpperCase()}&rdquo;
+                  </button>
+                ) : (
+                  <span className="font-mono text-[9px] text-sand">NO_ITEMS_FOUND</span>
+                )}
               </div>
             ) : (
-              filteredItems.map((item) => (
+              displayItems.map((item) => (
                 <button
                   key={item.id}
                   type="button"
@@ -136,42 +192,35 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-mono text-xs text-cream truncate">{item.name}</div>
-                    <div className="font-mono text-[9px] text-sand">{item.category}</div>
+                    {item.category && (
+                      <div className="font-mono text-[9px] text-sand">{item.category}</div>
+                    )}
                   </div>
-                  {item.lastPrice > 0 && (
+                  {'isLocal' in item ? (
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeLocalItem(item.id);
+                      }}
+                      className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
+                    >
+                      ✕
+                    </div>
+                  ) : item.lastPrice > 0 ? (
                     <div className="font-mono text-[9px] font-bold text-blue whitespace-nowrap">
                       {item.lastPrice.toFixed(2)} kCr
                     </div>
-                  )}
+                  ) : null}
                 </button>
               ))
             )}
           </div>
 
-          {selectedIds.size > 0 && (
+          {selectedCount > 0 && (
             <div className="font-mono text-[9px] text-blue">
-              {selectedIds.size} ITEM{selectedIds.size !== 1 ? 'S' : ''} SELECTED
+              {selectedCount} ITEM{selectedCount !== 1 ? 'S' : ''} SELECTED
             </div>
           )}
-
-          {/* Custom item input */}
-          <div>
-            <label className="font-mono text-[9px] font-bold tracking-[0.14em] uppercase text-sand block mb-1">
-              // CUSTOM_ITEM //
-            </label>
-            <input
-              type="text"
-              value={customItem}
-              onChange={(e) => setCustomItem(e.target.value.toUpperCase())}
-              placeholder="ENTER_CUSTOM_ITEM_NAME"
-              className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-2.5 px-3.5 font-mono text-xs text-cream outline-none focus:border-amber transition-colors placeholder:text-panel2"
-            />
-            {customItem.trim() && (
-              <div className="font-mono text-[8px] text-amber mt-1">
-                Will be marked as UNKNOWN (no price data)
-              </div>
-            )}
-          </div>
 
           {/* Add button */}
           <button
@@ -189,7 +238,7 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
                 : undefined
             }
           >
-            {isSubmitting ? 'ADDING...' : `[[ ADD_SELECTED (${selectedIds.size + (customItem.trim() ? 1 : 0)}) ]]`}
+            {isSubmitting ? 'ADDING...' : selectedCount > 0 ? `[[ ADD_SELECTED (${selectedCount}) ]]` : '[[ ADD_ITEMS ]]'}
           </button>
         </div>
       </ModalBody>
