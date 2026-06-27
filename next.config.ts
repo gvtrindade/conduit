@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { withSerwist } from "@serwist/turbopack";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -7,7 +6,7 @@ const nextConfig: NextConfig = {
     disableStaticImages: true,
   },
   turbopack: {},
-  allowedDevOrigins: ["192.168.1.9", "localhost"],
+  allowedDevOrigins: ["192.168.1.10", "localhost"],
 };
 
-export default withSerwist(nextConfig);
+export default nextConfig;

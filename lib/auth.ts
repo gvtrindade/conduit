@@ -13,11 +13,9 @@ export const db = new Pool({
 export const auth = betterAuth({
   baseURL: process.env.NEXT_PUBLIC_PROJECT_URL,
   trustedOrigins: [
-    "https://localhost:3000",
-    "https://192.168.1.9:3000",
-    "http://localhost:8080",
-    "http://192.168.1.17:8080",
-    "https://conduit.trindade.dev"
+    "https://192.168.1.10:3000",
+    "https://192.168.1.10:8080",
+    "https://localhost:3000"
   ],
   database: db,
   emailAndPassword: {

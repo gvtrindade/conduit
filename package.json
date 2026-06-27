@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "bun --bun next dev",
-    "dev:https": "bun --bun server-https.js",
+    "dev": "bun --bun next dev --experimental-https",
     "build": "bun --bun next build",
     "start": "bun --bun next start",
     "lint": "eslint",
@@ -24,8 +23,6 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
-    "@serwist/next": "^9.5.11",
-    "@serwist/turbopack": "^9.5.7",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -39,7 +36,6 @@
     "eslint-config-next": "16.2.1",
     "jsdom": "^29.0.1",
     "pg": "^8.20.0",
-    "serwist": "^9.5.7",
     "tailwindcss": "^4",
     "typescript": "^5"
   },
