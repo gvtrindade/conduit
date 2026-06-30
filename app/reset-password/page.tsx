@@ -4,6 +4,7 @@ import { useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
+import { Logo } from '@/components/logo';
 
 function ResetForm() {
   const router = useRouter();
@@ -66,10 +67,7 @@ function ResetForm() {
       <div className="flex-1 flex flex-col items-center justify-center min-h-screen px-6 py-12">
         <div className="w-full max-w-sm">
           <div className="text-center mb-7">
-            <div className="w-16 h-16 mx-auto mb-3 relative flex items-center justify-center">
-              <div className="absolute inset-0 bg-green/10 border-2 border-green" style={{ clipPath: 'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)', boxShadow: '0 0 24px rgba(120,168,144,0.2)' }} />
-              <span className="font-heading text-lg font-bold text-green relative z-10">✓</span>
-            </div>
+          <Logo color="green" />
             <div className="font-tight text-[26px] font-bold text-cream uppercase tracking-[0.14em] leading-none">KEY RESET</div>
             <div className="font-mono text-[9px] font-bold tracking-[0.22em] uppercase text-green mt-1">// ACCESS_KEY_UPDATED //</div>
             <div className="w-10 h-px bg-border-custom mx-auto mt-2.5" />
@@ -129,10 +127,7 @@ function ResetForm() {
     <div className="flex-1 flex flex-col items-center justify-center min-h-screen px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="text-center mb-7">
-          <div className="w-16 h-16 mx-auto mb-3 relative flex items-center justify-center">
-            <div className="absolute inset-0 bg-green/10 border-2 border-green" style={{ clipPath: 'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)', boxShadow: '0 0 24px rgba(120,168,144,0.2)' }} />
-            <span className="font-heading text-lg font-bold text-green relative z-10">C//</span>
-          </div>
+          <Logo color="green" />
           <div className="font-tight text-[26px] font-bold text-cream uppercase tracking-[0.14em] leading-none">RESET KEY</div>
           <div className="font-mono text-[9px] font-bold tracking-[0.22em] uppercase text-sand mt-1">// NEW_ACCESS_KEY_SETUP //</div>
           <div className="w-10 h-px bg-border-custom mx-auto mt-2.5" />

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
 import { disconnectDb, reconnectDb } from '@/components/providers/SystemProvider';
+import { Logo } from '@/components/logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,10 +56,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-7">
-          <div className="w-16 h-16 mx-auto mb-3 relative flex items-center justify-center">
-            <div className="absolute inset-0 bg-amber/10 border-2 border-amber" style={{ clipPath: 'polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%)', boxShadow: '0 0 24px rgba(217,140,69,0.2)' }} />
-            <span className="font-heading text-lg font-bold text-amber relative z-10">C//</span>
-          </div>
+          <Logo color="amber" />
           <div className="font-tight text-[26px] font-bold text-cream uppercase tracking-[0.14em] leading-none">CONDUIT</div>
           <div className="font-mono text-[9px] font-bold tracking-[0.22em] uppercase text-sand mt-1">// GROCERY INTELLIGENCE SYSTEM //</div>
           <div className="w-10 h-px bg-border-custom mx-auto mt-2.5" />

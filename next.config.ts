@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSerwist } from "@serwist/turbopack";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -9,4 +10,4 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.1.10", "localhost"],
 };
 
-export default nextConfig;
+export default withSerwist(nextConfig);

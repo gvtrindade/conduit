@@ -1,3 +1,5 @@
+ALTER TABLE "user" ADD COLUMN callsign TEXT NOT NULL;
+
 CREATE TABLE user_crew (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id_a TEXT NOT NULL REFERENCES "user"(id),

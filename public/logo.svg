@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <filter id="glow">
+      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#d98c45" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  <polygon
+    points="50,0 95,25 95,75 50,100 5,75 5,25"
+    fill="rgba(217,140,69,0.1)"
+    stroke="#d98c45"
+    stroke-width="2.5"
+    filter="url(#glow)"
+  />
+  <text
+    x="50"
+    y="62"
+    text-anchor="middle"
+    fill="#d98c45"
+    font-family="Inter, system-ui, sans-serif"
+    font-weight="700"
+    font-size="36"
+    letter-spacing="-1"
+  >C//</text>
+</svg>
