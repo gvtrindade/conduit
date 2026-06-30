@@ -9,10 +9,12 @@ export const MANIFESTS_LIST_QUERY = `
     manifests.est_total,
     manifests.confidence,
     manifests.checked_count,
+    manifests.created_by,
     manifests.created_at,
     manifests.updated_at,
     (SELECT COUNT(*) FROM manifest_items WHERE manifest_items.manifest_id = manifests.id) AS item_count,
-    (SELECT COUNT(*) FROM manifest_crew WHERE manifest_crew.manifest_id = manifests.id) AS crew_count
+    (SELECT COUNT(*) FROM manifest_crew WHERE manifest_crew.manifest_id = manifests.id) AS crew_count,
+    (SELECT callsign FROM users WHERE users.id = manifests.created_by) AS created_by_callsign
   FROM manifests
   ORDER BY
     CASE manifests.status
@@ -59,11 +61,26 @@ export const MANIFEST_CREW_QUERY = `
     manifest_crew.manifest_id,
     manifest_crew.user_id,
     manifest_crew.role,
-    users.name,
+    users.callsign,
     users.color
   FROM manifest_crew
   JOIN users ON manifest_crew.user_id = users.id
   WHERE manifest_crew.manifest_id = ?
+
+  UNION
+
+  SELECT
+    m.id AS manifest_id,
+    m.created_by AS user_id,
+    'COMMANDER' AS role,
+    u.callsign,
+    u.color
+  FROM manifests m
+  JOIN users u ON u.id = m.created_by
+  WHERE m.id = ?
+    AND m.created_by NOT IN (
+      SELECT user_id FROM manifest_crew WHERE manifest_id = ?
+    )
 `;
 
 export interface DbManifestListRow {
@@ -74,10 +91,12 @@ export interface DbManifestListRow {
   est_total: number | null;
   confidence: string | null;
   checked_count: number | null;
+  created_by: string | null;
   created_at: string | null;
   updated_at: string | null;
   item_count: number;
   crew_count: number;
+  created_by_callsign: string | null;
 }
 
 export interface DbManifestDetailRow {
@@ -108,7 +127,7 @@ export interface DbManifestCrewRow {
   manifest_id: string;
   user_id: string;
   role: string | null;
-  name: string;
+  callsign: string;
   color: string | null;
 }
 
@@ -134,6 +153,8 @@ export function mapDbManifestToManifestListItem(
     crew: [],
     lastModified: "",
     checkedCount: Number(row.checked_count) || 0,
+    createdBy: row.created_by,
+    createdByCallsign: row.created_by_callsign || undefined,
   };
 }
 
@@ -153,6 +174,7 @@ export function mapDbManifestDetailToManifest(
     crew,
     lastModified: "",
     checkedCount: Number(row.checked_count) || 0,
+    createdBy: row.created_by,
   };
 }
 
@@ -183,10 +205,11 @@ export function mapDbCrewToCrewMember(
   row: DbManifestCrewRow
 ): CrewMember {
   return {
-    initials: deriveInitials(row.name),
-    name: row.name,
+    initials: deriveInitials(row.callsign),
+    callsign: row.callsign,
     role: row.role || "",
     color: row.color || "#2A3848",
-    badge: "OPERATOR",
+    badge: row.role === "COMMANDER" ? "COMMANDER" : "OPERATOR",
+    id: row.user_id,
   };
 }

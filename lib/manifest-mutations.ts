@@ -25,9 +25,17 @@ export async function createManifest(
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
 
-  const params = [id, null, "WEEKLY", "DRAFT", 0, null, 0, userId, null, now, now];
+  const params = [id, null, "WEEKLY", "DRAFT", 0, null, 0, userId, userId, now, now];
 
   await db.execute(sql, params);
+
+  if (userId) {
+    await db.execute(
+      "INSERT INTO manifest_crew (id, manifest_id, user_id, role) VALUES (?, ?, ?, 'COMMANDER')",
+        [crypto.randomUUID(), id, userId],
+    );
+  }
+
   return id;
 }
 
@@ -35,7 +43,6 @@ export async function updateManifest(
   db: AbstractPowerSyncDatabase,
   id: string,
   data: { title?: string | null; type?: string },
-  userId: string | null,
 ): Promise<void> {
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -56,11 +63,10 @@ export async function updateManifest(
   values.push(new Date().toISOString());
   values.push(id);
 
-  const sql = `UPDATE manifests SET ${fields.join(", ")} WHERE id = ?${
-    userId ? " AND user_id = ?" : ""
-  }`;
-  const params = userId ? [...values, userId] : values;
-  await db.execute(sql, params);
+  await db.execute(
+    `UPDATE manifests SET ${fields.join(", ")} WHERE id = ?`,
+    values,
+  );
 }
 
 async function getCurrentStatus(
@@ -230,7 +236,7 @@ export async function deleteManifest(
   userId: string | null,
 ): Promise<void> {
   const result = (await db.execute(
-    "SELECT id FROM manifests WHERE id = ?" + (userId ? " AND user_id = ?" : ""),
+    "SELECT id FROM manifests WHERE id = ?" + (userId ? " AND created_by = ?" : ""),
     userId ? [id, userId] : [id],
   )) as { rows: { item: (idx: number) => { id: string }; length: number } };
 

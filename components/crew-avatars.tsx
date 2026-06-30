@@ -17,7 +17,7 @@ export default function CrewAvatars({ crew, size = 'sm' }: CrewAvatarsProps) {
           key={i}
           className={`${sizeClasses} rounded-full border-[1.5px] border-panel bg-panel2 flex items-center justify-center font-mono font-bold text-cream flex-shrink-0 ${i === 0 ? '!ml-0' : ''}`}
           style={{ background: member.color }}
-          title={member.name}
+          title={member.callsign}
         >
           {member.initials}
         </div>

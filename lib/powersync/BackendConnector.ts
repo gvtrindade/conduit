@@ -13,9 +13,9 @@ export class Connector implements PowerSyncBackendConnector {
 
   constructor() {
     this.backendUrl =
-      process.env.NEXT_PUBLIC_PROJECT_URL || "https://localhost:3000";
+      process.env.NEXT_PUBLIC_PROJECT_URL || "https://192.168.1.10:3010";
     this.powersyncUrl =
-      process.env.NEXT_PUBLIC_POWERSYNC_URL || "http://localhost:8080";
+      process.env.NEXT_PUBLIC_POWERSYNC_URL || "https://192.168.1.10:8080";
     this.powersyncToken = process.env.NEXT_PUBLIC_POWERSYNC_TOKEN || "changeme";
   }
 

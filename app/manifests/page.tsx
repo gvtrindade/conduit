@@ -175,6 +175,11 @@ export default function ManifestsPage() {
                                   ? "✓ COMPLETE"
                                   : "⊗ ARCHIVED"}
                           </Badge>
+                          {mft.createdByCallsign && (
+                            <span className="font-mono text-[8px] text-sand tracking-[0.08em] uppercase">
+                              via @{mft.createdByCallsign}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">

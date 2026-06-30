@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
@@ -8,10 +8,34 @@ import { authClient } from '@/lib/auth-client';
 export default function SignupPage() {
   const router = useRouter();
   const [showPw, setShowPw] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [callsign, setCallsign] = useState('');
+  const [callsignAvailable, setCallsignAvailable] = useState<boolean | null>(null);
+  const [checkingCallsign, setCheckingCallsign] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!callsign.trim()) {
+      setCallsignAvailable(null);
+      setCheckingCallsign(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setCheckingCallsign(true);
+      try {
+        const res = await fetch(`/api/users/check-callsign?callsign=${encodeURIComponent(callsign.trim())}`);
+        const data = await res.json();
+        setCallsignAvailable(data.available);
+      } catch {
+        setCallsignAvailable(null);
+      } finally {
+        setCheckingCallsign(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [callsign]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -29,6 +53,16 @@ export default function SignupPage() {
       return;
     }
 
+    if (!callsign.trim()) {
+      setError('CALLSIGN IS REQUIRED');
+      return;
+    }
+
+    if (callsignAvailable === false) {
+      setError('CALLSIGN ALREADY TAKEN');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -36,7 +70,8 @@ export default function SignupPage() {
         email,
         password,
         name: name,
-      });
+        callsign: callsign.trim(),
+      } as Parameters<typeof authClient.signUp.email>[0] & Record<string, string>);
 
       if (signUpError) {
         setError((signUpError.message || 'Unknown error').toUpperCase());
@@ -73,6 +108,28 @@ export default function SignupPage() {
               className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
               placeholder="CAPT_PROVISIONS"
             />
+          </div>
+          <div>
+            <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// CALLSIGN //</label>
+            <div className="relative">
+              <input
+                value={callsign}
+                onChange={(e) => setCallsign(e.target.value.toUpperCase())}
+                className="w-full bg-hull border-[1.5px] border-border-custom rounded-lg py-3.5 px-4 pr-16 font-mono text-[13px] font-medium text-cream tracking-wider outline-none caret-blue focus:border-blue focus:shadow-[0_0_0_3px_rgba(91,138,158,0.12)] transition-all placeholder:text-panel2"
+                placeholder="ALPHA_1"
+              />
+              <div className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                {checkingCallsign && (
+                  <span className="font-mono text-[9px] text-sand">SCAN...</span>
+                )}
+                {!checkingCallsign && callsignAvailable === true && (
+                  <span className="font-mono text-[9px] text-green">AVAILABLE</span>
+                )}
+                {!checkingCallsign && callsignAvailable === false && (
+                  <span className="font-mono text-[9px] text-red">TAKEN</span>
+                )}
+              </div>
+            </div>
           </div>
           <div>
             <label className="font-mono text-[9px] font-bold tracking-[0.16em] uppercase text-sand block mb-1.5">// COMM_CHANNEL //</label>

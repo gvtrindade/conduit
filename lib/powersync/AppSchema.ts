@@ -26,6 +26,7 @@ const users = new Table(
   {
     name: column.text,
     email: column.text,
+    callsign: column.text,
     rank: column.text,
     role: column.text,
     color: column.text,
@@ -33,7 +34,7 @@ const users = new Table(
     created_at: column.text,
     updated_at: column.text,
   },
-  { indexes: {} },
+  { indexes: {}, viewName: 'users' },
 );
 
 const merchants = new Table(
@@ -142,6 +143,7 @@ const manifest_items = new Table(
 
 const manifest_crew = new Table(
   {
+    id: column.text,
     manifest_id: column.text,
     user_id: column.text,
     role: column.text,
@@ -149,10 +151,23 @@ const manifest_crew = new Table(
   { indexes: {} },
 );
 
+const user_crew = new Table(
+  {
+    id: column.text,
+    user_id_a: column.text,
+    user_id_b: column.text,
+    status: column.text,
+    requested_by: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: {} },
+);
+
 export const AppSchema = new Schema({
   categories,
   tags,
-  users,
+  user: users,
   merchants,
   items,
   price_history,
@@ -161,9 +176,10 @@ export const AppSchema = new Schema({
   manifests,
   manifest_items,
   manifest_crew,
+  user_crew,
 });
 
-export { categories, tags, users, merchants, items, price_history, receipts, receipt_items, manifests, manifest_items, manifest_crew };
+export { categories, tags, users, merchants, items, price_history, receipts, receipt_items, manifests, manifest_items, manifest_crew, user_crew };
 
 export const ALLOWED_TABLES = new Set([
   "categories",
@@ -177,6 +193,7 @@ export const ALLOWED_TABLES = new Set([
   "manifests",
   "manifest_items",
   "manifest_crew",
+  "user_crew",
 ]);
 
 export type Database = (typeof AppSchema)["types"];

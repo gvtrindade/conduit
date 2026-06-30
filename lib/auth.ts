@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
+import { sendPasswordResetEmail } from "./email";
 
 export const db = new Pool({
   host: process.env.PG_HOST || "localhost",
@@ -18,8 +19,24 @@ export const auth = betterAuth({
     "https://localhost:3000"
   ],
   database: db,
+  user: {
+    additionalFields: {
+      callsign: {
+        type: 'string',
+        required: false,
+        input: true,
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
+    sendResetPassword: async ({ user, url }) => {
+      await sendPasswordResetEmail({
+        email: user.email,
+        name: user.name,
+        url,
+      });
+    },
   },
   socialProviders: {
     google: {

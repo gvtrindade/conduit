@@ -21,6 +21,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  callsign: string | null;
   rank: string | null;
   role: string | null;
   color: string | null;
@@ -147,4 +148,14 @@ export interface DbManifestCrew {
   manifest_id: string;
   user_id: string;
   role: string | null;
+}
+
+export interface DbUserCrew {
+  id: string;
+  user_id_a: string;
+  user_id_b: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  requested_by: string;
+  created_at: string;
+  updated_at: string;
 }

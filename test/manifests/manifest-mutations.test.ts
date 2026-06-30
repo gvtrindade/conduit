@@ -79,7 +79,7 @@ describe("Manifest mutations", () => {
     const { createManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    await createManifest(mockDb);
+    await createManifest(mockDb, "user-123");
 
     const [sql, params] = mockExecute.mock.calls[0];
     expect(sql).toContain("est_total");
@@ -90,7 +90,7 @@ describe("Manifest mutations", () => {
     const { createManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    await createManifest(mockDb);
+    await createManifest(mockDb, "user-123");
 
     const [sql, params] = mockExecute.mock.calls[0];
     expect(sql).toContain("checked_count");
@@ -117,7 +117,7 @@ describe("Manifest mutations", () => {
     const { updateManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    await updateManifest(mockDb, "abc-123", { title: "New Title" }, "user-123");
+    await updateManifest(mockDb, "abc-123", { title: "New Title" });
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];
@@ -626,7 +626,7 @@ describe("Manifest mutations", () => {
       const dbExec = makeDeleteMock(true);
       const mockDb = { execute: dbExec } as any;
 
-      await deleteManifest(mockDb, "manifest-123");
+      await deleteManifest(mockDb, "manifest-123", "user-123");
 
       expect(dbExec).toHaveBeenCalledTimes(3);
       const [firstSql, firstParams] = dbExec.mock.calls[1];
@@ -645,7 +645,7 @@ describe("Manifest mutations", () => {
       const dbExec = makeDeleteMock(true);
       const mockDb = { execute: dbExec } as any;
 
-      await deleteManifest(mockDb, "manifest-abc");
+      await deleteManifest(mockDb, "manifest-abc", "user-123");
 
       const callOrder = dbExec.mock.calls.map((c: any) => c[0]);
       const itemsDeleteIndex = callOrder.findIndex((s: string) => s.includes("manifest_items"));
@@ -659,7 +659,7 @@ describe("Manifest mutations", () => {
       const dbExec = makeDeleteMock(false);
       const mockDb = { execute: dbExec } as any;
 
-      expect(deleteManifest(mockDb, "nonexistent")).rejects.toThrow(/not found/i);
+      expect(deleteManifest(mockDb, "nonexistent", null)).rejects.toThrow(/not found/i);
     });
   });
 

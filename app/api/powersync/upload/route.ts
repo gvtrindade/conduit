@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Guard: Validate category_id foreign key if provided
-      if (opData.category_id !== undefined) {
+      if (opData.category_id !== undefined && opData.category_id !== "uncategorized") {
         if (
           opData.category_id &&
           !(await isValidForeignKey("categories", opData.category_id))
@@ -170,6 +170,8 @@ export async function POST(request: NextRequest) {
             { status: 400 },
           );
         }
+      } else if (opData.category_id === "uncategorized") {
+        opData.category_id = undefined;
       }
 
       // Guard: Validate primary_tag_id foreign key if provided
@@ -187,7 +189,7 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-
+      
       const fields = Object.keys(opData);
       if (fields.length === 0) {
         continue;
@@ -199,7 +201,6 @@ export async function POST(request: NextRequest) {
 
       const query = `UPDATE items SET ${setClauses.join(", ")} WHERE id = $1`;
       const values = [id, ...fields.map((field) => opData[field])];
-
       await db.query(query, values);
 
       processed++;
@@ -884,6 +885,159 @@ export async function POST(request: NextRequest) {
       if (itemManifestId) {
         await recalculateEstTotal(itemManifestId);
       }
+
+      processed++;
+    }
+
+    if (operation.op === "PUT" && operation.table === "manifest_crew") {
+      const { id, opData } = operation;
+
+      await db.query(
+        `INSERT INTO manifest_crew (id, manifest_id, user_id, role)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           manifest_id = EXCLUDED.manifest_id,
+           user_id = EXCLUDED.user_id,
+           role = EXCLUDED.role`,
+        [
+          id,
+          opData?.manifest_id ?? null,
+          opData?.user_id ?? null,
+          opData?.role ?? "OPERATOR",
+        ],
+      );
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "manifest_crew") {
+      const { id, opData } = operation;
+
+      if (opData?.manifest_id && opData?.user_id) {
+        await db.query(
+          "DELETE FROM manifest_crew WHERE manifest_id = $1 AND user_id = $2",
+          [opData.manifest_id, opData.user_id],
+        );
+      } else if (id) {
+        await db.query("DELETE FROM manifest_crew WHERE id = $1", [id]);
+      }
+
+      processed++;
+    }
+
+    if (operation.op === "PUT" && operation.table === "users") {
+      const { id, opData } = operation;
+
+      await db.query(
+        `INSERT INTO "user" (id, name, email, callsign)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (id) DO UPDATE SET
+           name = COALESCE(EXCLUDED.name, "user".name),
+           email = COALESCE(EXCLUDED.email, "user".email),
+           callsign = COALESCE(EXCLUDED.callsign, "user".callsign)`,
+        [
+          id,
+          opData?.name ?? null,
+          opData?.email ?? null,
+          opData?.callsign ?? null,
+        ],
+      );
+
+      processed++;
+    }
+
+    if (operation.op === "PATCH" && operation.table === "users") {
+      const { id, opData } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      const fields = Object.keys(opData);
+      if (fields.length === 0) {
+        continue;
+      }
+
+      const setClauses = fields.map((field, index) => {
+        return `${field} = $${index + 2}`;
+      });
+
+      const query = `UPDATE "user" SET ${setClauses.join(", ")} WHERE id = $1`;
+      const values = [id, ...fields.map((field) => opData[field])];
+
+      await db.query(query, values);
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "users") {
+      const { id } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      await db.query(`DELETE FROM "user" WHERE id = $1`, [id]);
+
+      processed++;
+    }
+
+    if (operation.op === "PUT" && operation.table === "user_crew") {
+      const { id, opData } = operation;
+
+      await db.query(
+        `INSERT INTO user_crew (id, user_id_a, user_id_b, status, requested_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE SET
+           status = EXCLUDED.status,
+           requested_by = EXCLUDED.requested_by,
+           updated_at = EXCLUDED.updated_at`,
+        [
+          id,
+          opData?.user_id_a ?? null,
+          opData?.user_id_b ?? null,
+          opData?.status ?? "pending",
+          opData?.requested_by ?? null,
+          opData?.created_at ?? new Date().toISOString(),
+          opData?.updated_at ?? new Date().toISOString(),
+        ],
+      );
+
+      processed++;
+    }
+
+    if (operation.op === "PATCH" && operation.table === "user_crew") {
+      const { id, opData } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      const fields = Object.keys(opData);
+      if (fields.length === 0) {
+        continue;
+      }
+
+      const setClauses = fields.map((field, index) => {
+        return `${field} = $${index + 2}`;
+      });
+
+      const query = `UPDATE user_crew SET ${setClauses.join(", ")} WHERE id = $1`;
+      const values = [id, ...fields.map((field) => opData[field])];
+
+      await db.query(query, values);
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "user_crew") {
+      const { id } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      await db.query("DELETE FROM user_crew WHERE id = $1", [id]);
 
       processed++;
     }

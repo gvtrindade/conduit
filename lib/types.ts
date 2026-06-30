@@ -58,10 +58,11 @@ export interface ManifestItem {
 
 export interface CrewMember {
   initials: string;
-  name: string;
+  callsign: string;
   role: string;
   color: string;
   badge: string;
+  id?: string;
 }
 
 export interface Manifest {
@@ -75,6 +76,8 @@ export interface Manifest {
   crew: CrewMember[];
   lastModified: string;
   checkedCount: number;
+  createdBy?: string | null;
+  createdByCallsign?: string;
 }
 
 export interface KPI {

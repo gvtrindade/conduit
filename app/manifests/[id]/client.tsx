@@ -29,6 +29,14 @@ import {
   type DbManifestDetailRow,
   type DbManifestItemRow,
 } from "@/lib/manifest-queries";
+import {
+  MANIFEST_AVAILABLE_CREW_QUERY,
+  type DbAvailableCrewRow,
+} from "@/lib/crew-queries";
+import {
+  addCrewToManifest,
+  removeCrewFromManifest,
+} from "@/lib/crew-mutations";
 import { usePowerSync, useQuery } from "@powersync/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -62,11 +70,17 @@ export default function ManifestDetailClient({
   );
   const { data: rawCrew, isLoading: crewLoading } = useQuery(
     MANIFEST_CREW_QUERY,
-    [id],
+    [id, id, id],
   );
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showIncludeOperator, setShowIncludeOperator] = useState(false);
+
+  const { data: rawAvailableCrew } = useQuery(
+    MANIFEST_AVAILABLE_CREW_QUERY,
+    [userId ?? "", userId ?? "", userId ?? "", id],
+  );
 
   const isLoading = manifestLoading || itemsLoading || crewLoading;
 
@@ -82,6 +96,8 @@ export default function ManifestDetailClient({
     return mapDbManifestDetailToManifest(rows[0], items, crew);
   }, [rawManifest, rawItems, rawCrew]);
 
+  const isCreator = !!userId && !!mft?.createdBy && userId === mft.createdBy;
+  const canEditCrew = isCreator && (mft?.status === "draft" || mft?.status === "active");
   const editable = mft?.status === "draft" || mft?.status === "active";
   const canAddItems = mft?.status === "draft" || mft?.status === "active";
   const canRemoveItems = mft?.status === "draft";
@@ -171,7 +187,6 @@ export default function ManifestDetailClient({
       powerSync,
       mft.id,
       { title: titleValue || null },
-      userId,
     );
   }, [mft, editable, titleValue, powerSync]);
 
@@ -179,7 +194,7 @@ export default function ManifestDetailClient({
     async (type: string) => {
       if (!mft || !editable) return;
       if (type === mft.type) return;
-      await updateManifest(powerSync, mft.id, { type }, userId);
+      await updateManifest(powerSync, mft.id, { type });
     },
     [mft, editable, powerSync],
   );
@@ -250,12 +265,14 @@ export default function ManifestDetailClient({
         backLabel=""
         title={mft.title}
         rightAction={
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="w-[30px] h-[30px] rounded-md border border-red/40 bg-red/5 flex items-center justify-center cursor-pointer text-red/70 text-sm font-mono hover:border-red hover:text-red hover:bg-red/10 transition-all"
-          >
-            x
-          </button>
+          isCreator ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-[30px] h-[30px] rounded-md border border-red/40 bg-red/5 flex items-center justify-center cursor-pointer text-red/70 text-sm font-mono hover:border-red hover:text-red hover:bg-red/10 transition-all"
+            >
+              x
+            </button>
+          ) : undefined
         }
       />
 
@@ -411,7 +428,7 @@ export default function ManifestDetailClient({
                 </div>
                 <div className="flex-1">
                   <div className="font-mono text-[10px] font-bold tracking-[0.06em] uppercase text-cream mb-0.5">
-                    {member.name}
+                    {member.callsign}
                   </div>
                   <div className="font-mono text-[9px] text-sand tracking-wider">
                     {member.role}
@@ -422,17 +439,77 @@ export default function ManifestDetailClient({
                 >
                   {member.badge}
                 </Badge>
+                {canEditCrew && member.badge !== "COMMANDER" && member.id && (
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Remove ${member.callsign} from this manifest?`)) return;
+                      await removeCrewFromManifest(powerSync, mft.id, member.id!);
+                    }}
+                    className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             ))}
           </div>
-          <button className="w-full bg-transparent border-[1.5px] border-dashed border-amber/35 rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer hover:border-amber hover:bg-amber/5 transition-all">
-            <span className="font-mono text-base">＋</span>
-            <span className="font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-amber">
-              &#47;&#47; INCLUDE_OPERATOR &#47;&#47;
-            </span>
-          </button>
+          {canEditCrew && (
+            <button
+              onClick={() => setShowIncludeOperator(true)}
+              className="w-full bg-transparent border-[1.5px] border-dashed border-amber/35 rounded-xl py-3 flex items-center justify-center gap-2 cursor-pointer hover:border-amber hover:bg-amber/5 transition-all"
+            >
+              <span className="font-mono text-base">＋</span>
+              <span className="font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-amber">
+                &#47;&#47; INCLUDE_OPERATOR &#47;&#47;
+              </span>
+            </button>
+          )}
         </div>
       </div>
+
+      <ModalOverlay
+        show={showIncludeOperator}
+        onClose={() => setShowIncludeOperator(false)}
+      >
+        <ModalHeader
+          title="INCLUDE_OPERATOR"
+          onClose={() => setShowIncludeOperator(false)}
+        />
+        <ModalBody>
+          {(rawAvailableCrew as unknown as DbAvailableCrewRow[])?.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {(rawAvailableCrew as unknown as DbAvailableCrewRow[]).map(
+                (row) => (
+                  <button
+                    key={row.id}
+                    onClick={async () => {
+                      await addCrewToManifest(
+                        powerSync,
+                        mft!.id,
+                        row.id,
+                        "OPERATOR",
+                      );
+                      setShowIncludeOperator(false);
+                      showToast("✓", "OPERATOR_ADDED");
+                    }}
+                    className="flex items-center gap-3 px-3.5 py-3 border border-border-custom rounded-lg bg-hull cursor-pointer hover:border-amber transition-all text-left"
+                  >
+                    <span className="font-mono text-[10px] font-bold tracking-[0.06em] uppercase text-cream">
+                      {row.callsign}
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <div className="font-mono text-[10px] text-sand">
+                NO_CREW_AVAILABLE
+              </div>
+            </div>
+          )}
+        </ModalBody>
+      </ModalOverlay>
 
       {canAddItems && (
         <AddItemsModal
