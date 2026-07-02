@@ -72,7 +72,6 @@ export default function ProfilePage() {
   const { data: rawPendingIncoming } = useQuery(PENDING_INCOMING_QUERY, [
     myId,
     myId,
-    myId,
   ]);
   const { data: rawPendingOutgoing } = useQuery(PENDING_OUTGOING_QUERY, [
     myId,
