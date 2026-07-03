@@ -63,6 +63,17 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
     return [...filteredItems, ...localItemData];
   }, [filteredItems, localItems]);
 
+  const selectedItems = useMemo(() => {
+    const allItems = [...items, ...localItems.map(li => ({
+      id: li.id,
+      name: li.name,
+      category: '',
+      lastPrice: 0,
+      isLocal: true as const,
+    }))];
+    return allItems.filter(item => selectedIds.has(item.id));
+  }, [items, localItems, selectedIds]);
+
   const toggleItem = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -156,69 +167,93 @@ export default function AddItemsModal({ show, manifestId, existingItemIds, onClo
               <div className="px-3.5 py-4 text-center font-mono text-[9px] text-sand">
                 LOADING_CATALOG...
               </div>
-            ) : displayItems.length === 0 ? (
+            ) : displayItems.length === 0 && !search.trim() ? (
               <div className="px-3.5 py-3 text-center">
-                {search.trim() ? (
+                <span className="font-mono text-[9px] text-sand">NO_ITEMS_FOUND</span>
+              </div>
+            ) : (
+              <>
+                {displayItems.length > 0 && displayItems.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => toggleItem(item.id)}
+                    className={`w-full text-left px-3.5 py-2.5 border-b border-border-custom flex items-center gap-3 cursor-pointer transition-colors ${
+                      selectedIds.has(item.id) ? 'bg-blue/8' : 'hover:bg-panel2'
+                    }`}
+                  >
+                    <div
+                      className={`w-[18px] h-[18px] flex-shrink-0 border-2 rounded-sm flex items-center justify-center text-[10px] font-bold ${
+                        selectedIds.has(item.id)
+                          ? 'border-blue bg-blue text-hull'
+                          : 'border-border-custom bg-hull'
+                      }`}
+                    >
+                      {selectedIds.has(item.id) && '✓'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-xs text-cream truncate">{item.name}</div>
+                      {item.category && (
+                        <div className="font-mono text-[9px] text-sand">{item.category}</div>
+                      )}
+                    </div>
+                    {'isLocal' in item ? (
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeLocalItem(item.id);
+                        }}
+                        className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
+                      >
+                        ✕
+                      </div>
+                    ) : item.lastPrice > 0 ? (
+                      <div className="font-mono text-[9px] font-bold text-blue whitespace-nowrap">
+                        {item.lastPrice.toFixed(2)} kCr
+                      </div>
+                    ) : null}
+                  </button>
+                ))}
+                {search.trim() && (
                   <button
                     type="button"
                     onClick={handleAddNewItem}
                     disabled={isSubmitting}
-                    className="w-full font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-blue bg-blue/8 border-[1.5px] border-blue/35 rounded-lg px-3 py-2.5 cursor-pointer hover:border-blue hover:bg-blue/14 transition-all"
+                    className="w-full text-left px-3.5 py-2.5 flex items-center gap-3 cursor-pointer transition-colors hover:bg-panel2 font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-blue border-t border-blue/30"
                   >
                     ＋ ADD &ldquo;{search.trim().toUpperCase()}&rdquo;
                   </button>
-                ) : (
-                  <span className="font-mono text-[9px] text-sand">NO_ITEMS_FOUND</span>
                 )}
+              </>
+            )}
+          </div>
+
+          {selectedCount > 0 && (
+            <div className="bg-panel border-[1.5px] border-border-custom rounded-xl">
+              <div className="px-3.5 py-2 font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-sand border-b border-border-custom">
+                // SELECTED_ITEMS //
               </div>
-            ) : (
-              displayItems.map((item) => (
-                <button
+              <div className="max-h-48 overflow-y-auto">
+              {selectedItems.map((item) => (
+                <div
                   key={item.id}
-                  type="button"
-                  onClick={() => toggleItem(item.id)}
-                  className={`w-full text-left px-3.5 py-2.5 border-b border-border-custom last:border-b-0 flex items-center gap-3 cursor-pointer transition-colors ${
-                    selectedIds.has(item.id) ? 'bg-blue/8' : 'hover:bg-panel2'
-                  }`}
+                  className="flex items-center gap-3 px-3.5 py-2.5 border-b border-border-custom last:border-b-0"
                 >
-                  <div
-                    className={`w-[18px] h-[18px] flex-shrink-0 border-2 rounded-sm flex items-center justify-center text-[10px] font-bold ${
-                      selectedIds.has(item.id)
-                        ? 'border-blue bg-blue text-hull'
-                        : 'border-border-custom bg-hull'
-                    }`}
-                  >
-                    {selectedIds.has(item.id) && '✓'}
-                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="font-mono text-xs text-cream truncate">{item.name}</div>
                     {item.category && (
                       <div className="font-mono text-[9px] text-sand">{item.category}</div>
                     )}
                   </div>
-                  {'isLocal' in item ? (
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeLocalItem(item.id);
-                      }}
-                      className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
-                    >
-                      ✕
-                    </div>
-                  ) : item.lastPrice > 0 ? (
-                    <div className="font-mono text-[9px] font-bold text-blue whitespace-nowrap">
-                      {item.lastPrice.toFixed(2)} kCr
-                    </div>
-                  ) : null}
-                </button>
-              ))
-            )}
-          </div>
-
-          {selectedCount > 0 && (
-            <div className="font-mono text-[9px] text-blue">
-              {selectedCount} ITEM{selectedCount !== 1 ? 'S' : ''} SELECTED
+                  <button
+                    onClick={() => toggleItem(item.id)}
+                    className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              </div>
             </div>
           )}
 
