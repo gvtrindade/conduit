@@ -20,6 +20,7 @@ export interface Receipt {
   items: ReceiptItem[];
   savings?: number;
   linkedManifestId?: string;
+  nfce?: string;
 }
 
 export interface PricePoint {

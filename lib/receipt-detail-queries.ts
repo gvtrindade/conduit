@@ -11,7 +11,8 @@ export const RECEIPT_DETAIL_QUERY = `
     receipts.item_count,
     receipts.status,
     receipts.savings,
-    receipts.linked_manifest_id
+    receipts.linked_manifest_id,
+    receipts.nfce
   FROM receipts
   LEFT JOIN merchants ON receipts.merchant_id = merchants.id
   WHERE receipts.id = ?
@@ -42,6 +43,7 @@ export interface DbReceiptDetailRow {
   status: string;
   savings: number | null;
   linked_manifest_id: string | null;
+  nfce: string | null;
 }
 
 export interface DbReceiptItemRow {
@@ -76,6 +78,7 @@ export function mapDbReceiptDetailToReceipt(
     items,
     savings: row.savings != null ? Number(row.savings) : undefined,
     linkedManifestId: row.linked_manifest_id || undefined,
+    nfce: row.nfce || undefined,
   };
 }
 
