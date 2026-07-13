@@ -164,13 +164,10 @@ export default function ReceiptDetailClient({
                   handleEditData();
                 } else if (item.label === "Open NFCe") {
                   setShowMenu(false);
-                  const apiUrl = process.env.NEXT_PUBLIC_NFCE_API_URL;
-                  if (apiUrl && receipt.nfce) {
-                    window.open(
-                      `${apiUrl}/api/nfce/receipt?chave=${encodeURIComponent(receipt.nfce)}`,
-                      "_blank",
-                    );
-                  }
+                  window.open(
+                    `https://ww1.receita.fazenda.df.gov.br/DecVisualizador/Nfce/Captcha?Chave=${encodeURIComponent(receipt.nfce!)}`,
+                    "_blank",
+                  );
                 } else if (item.label === "Upload HTML") {
                   setShowMenu(false);
                   fileInputRef.current?.click();
