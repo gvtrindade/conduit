@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, usePowerSync } from '@powersync/react';
 import TopNav from '@/components/top-nav';
@@ -39,6 +39,8 @@ export default function ReceiptDetailClient({ id, userId }: { id: string; userId
   const [showDelete, setShowDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast, showToast, hideToast } = useToast();
 
   const { data: rawReceipts, isLoading: receiptLoading } = useQuery(RECEIPT_DETAIL_QUERY, [id]);
@@ -104,6 +106,7 @@ export default function ReceiptDetailClient({ id, userId }: { id: string; userId
         <div className="absolute top-14 right-5 bg-panel border-[1.5px] border-border-custom rounded-xl overflow-hidden z-[250] min-w-[180px] shadow-2xl">
           {[
             { icon: '📤', label: 'Edit Data' },
+            { icon: '📄', label: 'Upload HTML' },
             { icon: '📤', label: 'Export PDF' },
             { icon: '📋', label: 'Copy Link' },
             { icon: '🔁', label: 'Reprocess', disabled: receipt.status === 'OK' },
@@ -113,6 +116,9 @@ export default function ReceiptDetailClient({ id, userId }: { id: string; userId
               onClick={async () => {
                 if (item.label === 'Edit Data') {
                   handleEditData();
+                } else if (item.label === 'Upload HTML') {
+                  setShowMenu(false);
+                  fileInputRef.current?.click();
                 } else if (item.label === 'Reprocess') {
                   setShowMenu(false);
                   showToast('🔁', 'REPROCESSING...');
@@ -378,6 +384,63 @@ export default function ReceiptDetailClient({ id, userId }: { id: string; userId
           </div>
         </div>
       </ModalOverlay>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".html,.htm,.txt,.mht,.mhtml"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          e.target.value = '';
+          
+          const ext = file.name.split('.').pop()?.toLowerCase();
+          if (!ext || !['html', 'htm', 'txt', 'mht', 'mhtml'].includes(ext)) {
+            showToast('⚠️', 'INVALID_FILE_TYPE');
+            return;
+          }
+          
+          setIsUploading(true);
+          showToast('📄', 'UPLOADING...');
+          
+          try {
+            const rawContent = await file.text();
+            let contentToSend: string;
+            
+            if (ext === 'txt') {
+              if (!rawContent.trim()) {
+                throw new Error('File is empty');
+              }
+              contentToSend = rawContent;
+            } else if (ext === 'html' || ext === 'htm') {
+              contentToSend = rawContent;
+            } else {
+              // MHT/MHTML: extract HTML part from MIME structure
+              const htmlMatch = rawContent.match(/Content-Type:\s*text\/html[\s\S]*?\r?\n\r?\n([\s\S]*?)(?=\r?\n--|=)/i);
+              if (!htmlMatch) {
+                throw new Error('Could not extract HTML from MHT file');
+              }
+              contentToSend = htmlMatch[1].trim();
+            }
+            
+            const apiUrl = process.env.NEXT_PUBLIC_NFCE_API_URL;
+            const projectUrl = process.env.NEXT_PUBLIC_PROJECT_URL;
+            const res = await fetch(`${apiUrl}/api/nfce/parse`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ receiptId: id, html: contentToSend, projectUrl }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            showToast('✦', 'HTML_UPLOADED // PARSING');
+          } catch (err) {
+            console.error('Upload failed:', err);
+            showToast('⚠️', err instanceof Error ? err.message : 'UPLOAD_FAILED');
+          } finally {
+            setIsUploading(false);
+          }
+        }}
+      />
 
       <Toast icon={toast.icon} message={toast.message} visible={toast.visible} onClose={hideToast} />
     </div>
