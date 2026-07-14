@@ -561,13 +561,35 @@ export default function ReceiptDetailClient({
               contentToSend = rawContent;
             } else {
               // MHT/MHTML: extract HTML part from MIME structure
-              const htmlMatch = rawContent.match(
-                /Content-Type:\s*text\/html[\s\S]*?\r?\n\r?\n([\s\S]*?)(?=\r?\n--|=)/i,
-              );
-              if (!htmlMatch) {
+              // First, extract the boundary from the Content-Type header
+              const boundaryMatch = rawContent.match(/boundary="?([^";\s]+)"?/);
+              if (!boundaryMatch) {
+                throw new Error("Could not find MIME boundary in MHT file");
+              }
+              const boundary = boundaryMatch[1];
+
+              // Split content by boundary markers
+              const parts = rawContent.split(`--${boundary}`);
+
+              // Find the HTML part
+              let htmlContent: string | null = null;
+              for (const part of parts) {
+                if (/Content-Type:\s*text\/html/i.test(part)) {
+                  // Extract content after headers (after blank line)
+                  const match = part.match(
+                    /Content-Type:\s*text\/html[\s\S]*?\r?\n\r?\n([\s\S]*)/i,
+                  );
+                  if (match) {
+                    htmlContent = match[1].trim();
+                    break;
+                  }
+                }
+              }
+
+              if (!htmlContent) {
                 throw new Error("Could not extract HTML from MHT file");
               }
-              contentToSend = htmlMatch[1].trim();
+              contentToSend = htmlContent;
             }
 
             const apiUrl = process.env.NEXT_PUBLIC_NFCE_API_URL;
