@@ -76,6 +76,7 @@ export default function ManifestDetailClient({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showIncludeOperator, setShowIncludeOperator] = useState(false);
+  const [showStatusConfirm, setShowStatusConfirm] = useState(false);
 
   const { data: rawAvailableCrew } = useQuery(
     MANIFEST_AVAILABLE_CREW_QUERY,
@@ -154,8 +155,14 @@ export default function ManifestDetailClient({
   const transitionConfig = mft ? STATUS_TRANSITIONS[mft.status] : null;
   const canTransition = mft?.status !== "draft" || (mft?.items.length ?? 0) > 0;
 
+  const handleStatusTransitionClick = useCallback(() => {
+    if (!mft) return;
+    setShowStatusConfirm(true);
+  }, [mft]);
+
   const handleStatusTransition = useCallback(async () => {
     if (!mft) return;
+    setShowStatusConfirm(false);
     switch (mft.status) {
       case "draft":
         await activateManifest(powerSync, mft.id);
@@ -327,7 +334,7 @@ export default function ManifestDetailClient({
           )}
           {transitionConfig && (
             <button
-              onClick={handleStatusTransition}
+              onClick={handleStatusTransitionClick}
               disabled={!canTransition}
               className={`w-full ${transitionConfig.bg} border-2 ${transitionConfig.border} rounded-lg py-3 font-mono text-[11px] font-bold tracking-[0.12em] uppercase ${transitionConfig.textColor} ${canTransition ? "cursor-pointer hover:opacity-90" : "bg-panel border-border-custom text-panel2 cursor-not-allowed"} mt-3 transition-opacity ${canTransition ? "" : "hover:opacity-100"}`}
               style={{
@@ -527,6 +534,58 @@ export default function ManifestDetailClient({
         visible={toast.visible}
         onClose={hideToast}
       />
+      <ModalOverlay
+        show={showStatusConfirm}
+        onClose={() => setShowStatusConfirm(false)}
+      >
+        <ModalHeader
+          title="CONFIRM_STATUS_CHANGE"
+          onClose={() => setShowStatusConfirm(false)}
+          titleColor={
+            mft.status === "draft"
+              ? "var(--green)"
+              : mft.status === "active"
+                ? "var(--amber)"
+                : "var(--sand)"
+          }
+        />
+        <ModalBody>
+          <div className="text-center mb-6">
+            <div className="text-4xl mb-3">
+              {mft.status === "draft" ? "▶" : mft.status === "active" ? "✓" : "📦"}
+            </div>
+            <div className="font-mono text-xs font-bold tracking-[0.1em] uppercase text-cream mb-2">
+              {transitionConfig?.label}
+            </div>
+            <div className="font-mono text-[10px] text-sand">
+              {mft.status === "draft" && "This will activate the manifest and begin tracking items."}
+              {mft.status === "active" && "This will mark the manifest as complete. No more items can be checked."}
+              {mft.status === "done" && "This will archive the manifest. It will be read-only."}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowStatusConfirm(false)}
+              className="flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border border-border-custom rounded-lg text-sand hover:text-cream hover:border-sand transition-all cursor-pointer"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleStatusTransition}
+              className={`flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border rounded-lg text-cream transition-all cursor-pointer ${
+                mft.status === "draft"
+                  ? "bg-green border-green hover:bg-green/80"
+                  : mft.status === "active"
+                    ? "bg-amber border-amber hover:bg-amber/80"
+                    : "bg-sand border-sand hover:bg-sand/80"
+              }`}
+            >
+              CONFIRM
+            </button>
+          </div>
+        </ModalBody>
+      </ModalOverlay>
+
       <ModalOverlay
         show={showDeleteConfirm}
         onClose={() => setShowDeleteConfirm(false)}
