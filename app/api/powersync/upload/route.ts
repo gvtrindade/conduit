@@ -1,4 +1,10 @@
-import { auth, db } from "@/lib/auth";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import {
+  ManifestStatus,
+  ManifestType,
+  ReceiptStatus,
+} from "@/prisma/generated/client";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -7,18 +13,21 @@ function isValidName(name: unknown): name is string {
   return typeof name === "string" && name.trim().length > 0;
 }
 
-const VALID_MANIFEST_TYPES = [
-  "WEEKLY", "BULK", "MONTHLY", "HEALTH", "SEASONAL", "QUICK", "TARGETED", "CUSTOM",
-] as const;
+const VALID_MANIFEST_TYPES = Object.values(ManifestType);
+const VALID_MANIFEST_STATUSES = Object.values(ManifestStatus);
 
 function isValidManifestType(type: unknown): type is string {
-  return typeof type === "string" && VALID_MANIFEST_TYPES.includes(type as typeof VALID_MANIFEST_TYPES[number]);
+  return (
+    typeof type === "string" &&
+    (VALID_MANIFEST_TYPES as readonly string[]).includes(type)
+  );
 }
 
-const VALID_MANIFEST_STATUSES = ["DRAFT", "ACTIVE", "DONE", "ARCHIVED"] as const;
-
 function isValidManifestStatus(status: unknown): status is string {
-  return typeof status === "string" && VALID_MANIFEST_STATUSES.includes(status as typeof VALID_MANIFEST_STATUSES[number]);
+  return (
+    typeof status === "string" &&
+    (VALID_MANIFEST_STATUSES as readonly string[]).includes(status)
+  );
 }
 
 const ALLOWED_STATUS_TRANSITIONS: Record<string, string> = {
@@ -27,24 +36,65 @@ const ALLOWED_STATUS_TRANSITIONS: Record<string, string> = {
   DONE: "ARCHIVED",
 };
 
-// Validate foreign key fields exist in database
+// Validate foreign key fields exist in database, via the Prisma entities.
+const FK_CHECKERS = {
+  categories: (id: string) =>
+    prisma.category.findUnique({ where: { id }, select: { id: true } }),
+  tags: (id: string) =>
+    prisma.tag.findUnique({ where: { id }, select: { id: true } }),
+  merchants: (id: string) =>
+    prisma.merchant.findUnique({ where: { id }, select: { id: true } }),
+  manifests: (id: string) =>
+    prisma.manifest.findUnique({ where: { id }, select: { id: true } }),
+  items: (id: string) =>
+    prisma.item.findUnique({ where: { id }, select: { id: true } }),
+} as const;
+
 async function isValidForeignKey(
-  tableName: string,
+  tableName: keyof typeof FK_CHECKERS,
   value: unknown,
 ): Promise<boolean> {
   if (!value) return true;
-  const result = await db.query(`SELECT 1 FROM ${tableName} WHERE id = $1`, [value]);
-  return result.rowCount !== null && result.rowCount > 0;
+  const row = await FK_CHECKERS[tableName](value as string);
+  return row !== null;
 }
 
+// Recompute manifests.est_total from the sum of manifest_items.prev_price.
 async function recalculateEstTotal(manifestId: string): Promise<void> {
-  await db.query(
-    `UPDATE manifests SET est_total = (
-      SELECT COALESCE(SUM(COALESCE(prev_price, 0)), 0)
-      FROM manifest_items WHERE manifest_id = $1
-    ) WHERE id = $1`,
-    [manifestId],
-  );
+  const agg = await prisma.manifestItem.aggregate({
+    where: { manifest_id: manifestId },
+    _sum: { prev_price: true },
+  });
+  await prisma.manifest.updateMany({
+    where: { id: manifestId },
+    data: { est_total: agg._sum.prev_price ?? 0 },
+  });
+}
+
+// The "user" table uses camelCase columns (better-auth) but the PowerSync
+// client sends snake_case for created_at/updated_at, and preferences as a
+// JSON string. Remap to the Prisma User field names / JSON value.
+function normalizePreferences(v: unknown): unknown {
+  if (v == null) return null;
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
+  return v;
+}
+
+function remapUserData(opData: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(opData)) {
+    if (k === "created_at") out.createdAt = v;
+    else if (k === "updated_at") out.updatedAt = v;
+    else if (k === "preferences") out.preferences = normalizePreferences(v);
+    else out[k] = v;
+  }
+  return out;
 }
 
 export async function POST(request: NextRequest) {
@@ -116,30 +166,30 @@ export async function POST(request: NextRequest) {
         createdAt = new Date().toISOString();
       }
 
-      await db.query(
-        `INSERT INTO items (id, name, codename, emoji, category_id, category_custom, primary_tag_id, primary_tag_custom, unit, user_id, created_at, updated_at) 
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
- ON CONFLICT (id) DO UPDATE SET 
-   name = EXCLUDED.name,
-   category_id = EXCLUDED.category_id,
-   primary_tag_id = EXCLUDED.primary_tag_id,
-   user_id = EXCLUDED.user_id,
-   updated_at = EXCLUDED.updated_at`,
-        [
+      await prisma.item.upsert({
+        where: { id },
+        create: {
           id,
           name,
-          opData.codename ?? null,
-          opData.emoji ?? null,
-          categoryId ?? null,
-          opData.category_custom ?? null,
-          primaryTagId ?? null,
-          opData.primary_tag_custom,
-          opData.unit,
-          userId,
-          createdAt,
-          createdAt
-        ],
-      );
+          codename: opData.codename ?? null,
+          emoji: opData.emoji ?? null,
+          category_id: categoryId ?? null,
+          category_custom: opData.category_custom ?? null,
+          primary_tag_id: primaryTagId ?? null,
+          primary_tag_custom: opData.primary_tag_custom ?? null,
+          unit: opData.unit,
+          user_id: userId as string,
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+        update: {
+          name,
+          category_id: categoryId ?? null,
+          primary_tag_id: primaryTagId ?? null,
+          user_id: userId as string,
+          updated_at: createdAt,
+        },
+      });
 
       processed++;
     }
@@ -171,7 +221,9 @@ export async function POST(request: NextRequest) {
           );
         }
       } else if (opData.category_id === "uncategorized") {
-        opData.category_id = undefined;
+        // "uncategorized" means clear the category (set NULL), matching the
+        // previous raw-SQL behaviour (pg treated the undefined param as NULL).
+        opData.category_id = null;
       }
 
       // Guard: Validate primary_tag_id foreign key if provided
@@ -189,19 +241,13 @@ export async function POST(request: NextRequest) {
           );
         }
       }
-      
+
       const fields = Object.keys(opData);
       if (fields.length === 0) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
-      });
-
-      const query = `UPDATE items SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-      await db.query(query, values);
+      await prisma.item.updateMany({ where: { id }, data: opData });
 
       processed++;
     }
@@ -213,33 +259,20 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Check if receipt_items table exists before checking references
-      const tableCheck = await db.query(
-        "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'receipt_items')",
-      );
-      const tableExists = tableCheck.rows[0]?.exists ?? false;
+      // Check if item is referenced in receipt_items
+      const referenceCount = await prisma.receiptItem.count({
+        where: { item_id: id },
+      });
 
-      if (tableExists) {
-        // Check if item is referenced in receipt_items
-        const referenceCheck = await db.query(
-          "SELECT COUNT(*) FROM receipt_items WHERE item_id = $1",
-          [id],
+      if (referenceCount > 0) {
+        return NextResponse.json(
+          { error: "Cannot delete item: it is referenced by receipt items" },
+          { status: 409 },
         );
-        const referenceCount = parseInt(
-          referenceCheck.rows[0]?.count ?? "0",
-          10,
-        );
-
-        if (referenceCount > 0) {
-          return NextResponse.json(
-            { error: "Cannot delete item: it is referenced by receipt items" },
-            { status: 409 },
-          );
-        }
       }
 
       // Delete the item (idempotent - no error if doesn't exist)
-      await db.query("DELETE FROM items WHERE id = $1", [id]);
+      await prisma.item.deleteMany({ where: { id } });
 
       processed++;
     }
@@ -297,74 +330,64 @@ export async function POST(request: NextRequest) {
         createdAt = new Date().toISOString();
       }
 
-      const client = await db.connect();
-      try {
-        await client.query("BEGIN");
-
-        await client.query(
-          `INSERT INTO receipts (id, merchant_id, receipt_date, total, item_count, status, savings, linked_manifest_id, processed_at, user_id, created_at, nfce)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-  ON CONFLICT (id) DO UPDATE SET
-    merchant_id = EXCLUDED.merchant_id,
-    receipt_date = EXCLUDED.receipt_date,
-    total = EXCLUDED.total,
-    item_count = EXCLUDED.item_count,
-    status = EXCLUDED.status,
-    savings = EXCLUDED.savings,
-    linked_manifest_id = EXCLUDED.linked_manifest_id,
-    processed_at = EXCLUDED.processed_at,
-    user_id = EXCLUDED.user_id,
-    nfce = EXCLUDED.nfce`,
-          [
+      await prisma.$transaction(async (tx) => {
+        await tx.receipt.upsert({
+          where: { id },
+          create: {
             id,
-            receiptData.merchant_id,
-            receiptData?.receipt_date ?? null,
-            receiptData?.total ?? null,
-            receiptData?.item_count ?? null,
-            receiptData?.status ?? "PENDING",
-            receiptData?.savings ?? null,
-            receiptData?.linked_manifest_id ?? null,
-            receiptData?.processed_at ?? null,
-            userId,
-            createdAt,
-            receiptData?.nfce ?? null,
-          ],
-        );
+            merchant_id: receiptData.merchant_id,
+            receipt_date: receiptData?.receipt_date ?? null,
+            total: receiptData?.total ?? null,
+            item_count: receiptData?.item_count ?? null,
+            status: receiptData?.status ?? ReceiptStatus.PENDING,
+            savings: receiptData?.savings ?? null,
+            linked_manifest_id: receiptData?.linked_manifest_id ?? null,
+            processed_at: receiptData?.processed_at ?? null,
+            user_id: userId,
+            created_at: createdAt,
+            nfce: receiptData?.nfce ?? null,
+          },
+          update: {
+            merchant_id: receiptData.merchant_id,
+            receipt_date: receiptData?.receipt_date ?? null,
+            total: receiptData?.total ?? null,
+            item_count: receiptData?.item_count ?? null,
+            status: receiptData?.status ?? ReceiptStatus.PENDING,
+            savings: receiptData?.savings ?? null,
+            linked_manifest_id: receiptData?.linked_manifest_id ?? null,
+            processed_at: receiptData?.processed_at ?? null,
+            user_id: userId,
+            nfce: receiptData?.nfce ?? null,
+          },
+        });
 
         if (receiptItems && Array.isArray(receiptItems)) {
           for (const item of receiptItems) {
-            await client.query(
-              `INSERT INTO receipt_items (id, receipt_id, item_id, qty, unit_price, total, category_custom, tags_custom)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-  ON CONFLICT (id) DO UPDATE SET
-    receipt_id = EXCLUDED.receipt_id,
-    item_id = EXCLUDED.item_id,
-    qty = EXCLUDED.qty,
-    unit_price = EXCLUDED.unit_price,
-    total = EXCLUDED.total,
-    category_custom = EXCLUDED.category_custom,
-    tags_custom = EXCLUDED.tags_custom`,
-              [
-                item.id,
-                id,
-                item.item_id ?? null,
-                item.qty ?? null,
-                item.unit_price ?? null,
-                item.total ?? null,
-                item.category_custom ?? null,
-                item.tags_custom ?? null,
-              ],
-            );
+            await tx.receiptItem.upsert({
+              where: { id: item.id },
+              create: {
+                id: item.id,
+                receipt_id: id,
+                item_id: item.item_id ?? null,
+                qty: item.qty ?? null,
+                unit_price: item.unit_price ?? null,
+                total: item.total ?? null,
+                category_custom: item.category_custom ?? null,
+                tags_custom: item.tags_custom ?? null,
+              },
+              update: {
+                receipt_id: id,
+                item_id: item.item_id ?? null,
+                qty: item.qty ?? null,
+                unit_price: item.unit_price ?? null,
+                total: item.total ?? null,
+                category_custom: item.category_custom ?? null,
+                tags_custom: item.tags_custom ?? null,
+              },
+            });
           }
         }
-
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+      });
 
       processed++;
     }
@@ -429,65 +452,51 @@ export async function POST(request: NextRequest) {
       }
 
       // Check receipt exists
-      const existingReceipt = await db.query("SELECT id FROM receipts WHERE id = $1", [id]);
-      if (existingReceipt.rowCount === null || existingReceipt.rowCount === 0) {
+      const existingReceipt = await prisma.receipt.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!existingReceipt) {
         return NextResponse.json(
           { error: "receipt", message: "Receipt does not exist" },
           { status: 400 },
         );
       }
 
-      const client = await db.connect();
-      try {
-        await client.query("BEGIN");
-
+      await prisma.$transaction(async (tx) => {
         // Update receipt fields
         if (fields.length > 0) {
-          const setClauses = fields.map((field, index) => {
-            return `${field} = $${index + 2}`;
-          });
-
-          const query = `UPDATE receipts SET ${setClauses.join(", ")} WHERE id = $1`;
-          const values = [id, ...fields.map((field) => receiptData[field])];
-
-          await client.query(query, values);
+          await tx.receipt.updateMany({ where: { id }, data: receiptData });
         }
 
         // Upsert receipt_items
         if (receiptItems && Array.isArray(receiptItems)) {
           for (const item of receiptItems) {
-            await client.query(
-              `INSERT INTO receipt_items (id, receipt_id, item_id, qty, unit_price, total, category_custom, tags_custom)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-  ON CONFLICT (id) DO UPDATE SET
-    receipt_id = EXCLUDED.receipt_id,
-    item_id = EXCLUDED.item_id,
-    qty = EXCLUDED.qty,
-    unit_price = EXCLUDED.unit_price,
-    total = EXCLUDED.total,
-    category_custom = EXCLUDED.category_custom,
-    tags_custom = EXCLUDED.tags_custom`,
-              [
-                item.id,
-                id,
-                item.item_id ?? null,
-                item.qty ?? null,
-                item.unit_price ?? null,
-                item.total ?? null,
-                item.category_custom ?? null,
-                item.tags_custom ?? null,
-              ],
-            );
+            await tx.receiptItem.upsert({
+              where: { id: item.id },
+              create: {
+                id: item.id,
+                receipt_id: id,
+                item_id: item.item_id ?? null,
+                qty: item.qty ?? null,
+                unit_price: item.unit_price ?? null,
+                total: item.total ?? null,
+                category_custom: item.category_custom ?? null,
+                tags_custom: item.tags_custom ?? null,
+              },
+              update: {
+                receipt_id: id,
+                item_id: item.item_id ?? null,
+                qty: item.qty ?? null,
+                unit_price: item.unit_price ?? null,
+                total: item.total ?? null,
+                category_custom: item.category_custom ?? null,
+                tags_custom: item.tags_custom ?? null,
+              },
+            });
           }
         }
-
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+      });
 
       processed++;
     }
@@ -499,28 +508,21 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const existingReceipt = await db.query("SELECT id FROM receipts WHERE id = $1", [id]);
-      if (existingReceipt.rowCount === null || existingReceipt.rowCount === 0) {
+      const existingReceipt = await prisma.receipt.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!existingReceipt) {
         return NextResponse.json(
           { error: "receipt", message: "Receipt does not exist" },
           { status: 400 },
         );
       }
 
-      const client = await db.connect();
-      try {
-        await client.query("BEGIN");
-
-        await client.query("DELETE FROM receipt_items WHERE receipt_id = $1", [id]);
-        await client.query("DELETE FROM receipts WHERE id = $1", [id]);
-
-        await client.query("COMMIT");
-      } catch (error) {
-        await client.query("ROLLBACK");
-        throw error;
-      } finally {
-        client.release();
-      }
+      await prisma.$transaction(async (tx) => {
+        await tx.receiptItem.deleteMany({ where: { receipt_id: id } });
+        await tx.receipt.deleteMany({ where: { id } });
+      });
 
       processed++;
     }
@@ -528,28 +530,28 @@ export async function POST(request: NextRequest) {
     if (operation.op === "PUT" && operation.table === "receipt_items") {
       const { id, opData } = operation;
 
-      await db.query(
-        `INSERT INTO receipt_items (id, receipt_id, item_id, qty, unit_price, total, category_custom, tags_custom)
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
- ON CONFLICT (id) DO UPDATE SET
-   receipt_id = EXCLUDED.receipt_id,
-   item_id = EXCLUDED.item_id,
-   qty = EXCLUDED.qty,
-   unit_price = EXCLUDED.unit_price,
-   total = EXCLUDED.total,
-   category_custom = EXCLUDED.category_custom,
-   tags_custom = EXCLUDED.tags_custom`,
-        [
+      await prisma.receiptItem.upsert({
+        where: { id },
+        create: {
           id,
-          opData?.receipt_id ?? null,
-          opData?.item_id ?? null,
-          opData?.qty ?? null,
-          opData?.unit_price ?? null,
-          opData?.total ?? null,
-          opData?.category_custom ?? null,
-          opData?.tags_custom ?? null,
-        ],
-      );
+          receipt_id: opData?.receipt_id as string,
+          item_id: opData?.item_id ?? null,
+          qty: opData?.qty ?? null,
+          unit_price: opData?.unit_price ?? null,
+          total: opData?.total ?? null,
+          category_custom: opData?.category_custom ?? null,
+          tags_custom: opData?.tags_custom ?? null,
+        },
+        update: {
+          receipt_id: opData?.receipt_id as string,
+          item_id: opData?.item_id ?? null,
+          qty: opData?.qty ?? null,
+          unit_price: opData?.unit_price ?? null,
+          total: opData?.total ?? null,
+          category_custom: opData?.category_custom ?? null,
+          tags_custom: opData?.tags_custom ?? null,
+        },
+      });
 
       processed++;
     }
@@ -566,14 +568,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
-      });
-
-      const query = `UPDATE receipt_items SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-
-      await db.query(query, values);
+      await prisma.receiptItem.updateMany({ where: { id }, data: opData });
 
       processed++;
     }
@@ -585,7 +580,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      await db.query("DELETE FROM receipt_items WHERE id = $1", [id]);
+      await prisma.receiptItem.deleteMany({ where: { id } });
 
       processed++;
     }
@@ -606,21 +601,21 @@ export async function POST(request: NextRequest) {
         createdAt = new Date().toISOString();
       }
 
-      await db.query(
-        `INSERT INTO merchants (id, name, emoji, user_id, created_at)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (id) DO UPDATE SET
-           name = EXCLUDED.name,
-           emoji = EXCLUDED.emoji,
-           user_id = EXCLUDED.user_id`,
-        [
+      await prisma.merchant.upsert({
+        where: { id },
+        create: {
           id,
           name,
-          opData?.emoji ?? null,
-          userId,
-          createdAt
-        ]
-      );
+          emoji: opData?.emoji ?? null,
+          user_id: userId as string,
+          created_at: createdAt,
+        },
+        update: {
+          name,
+          emoji: opData?.emoji ?? null,
+          user_id: userId as string,
+        },
+      });
 
       processed++;
     }
@@ -644,14 +639,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
-      });
-
-      const query = `UPDATE merchants SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-
-      await db.query(query, values);
+      await prisma.merchant.updateMany({ where: { id }, data: opData });
 
       processed++;
     }
@@ -663,7 +651,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      await db.query("DELETE FROM merchants WHERE id = $1", [id]);
+      await prisma.merchant.deleteMany({ where: { id } });
 
       processed++;
     }
@@ -676,32 +664,32 @@ export async function POST(request: NextRequest) {
         createdAt = new Date().toISOString();
       }
 
-      await db.query(
-        `INSERT INTO manifests (id, title, type, status, est_total, confidence, checked_count, user_id, created_by, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         ON CONFLICT (id) DO UPDATE SET
-           title = EXCLUDED.title,
-           type = EXCLUDED.type,
-           status = EXCLUDED.status,
-           est_total = EXCLUDED.est_total,
-           confidence = EXCLUDED.confidence,
-           checked_count = EXCLUDED.checked_count,
-           user_id = EXCLUDED.user_id,
-           updated_at = EXCLUDED.updated_at`,
-        [
+      await prisma.manifest.upsert({
+        where: { id },
+        create: {
           id,
-          opData?.title ?? null,
-          opData?.type ?? null,
-          opData?.status ?? "DRAFT",
-          opData?.est_total ?? null,
-          opData?.confidence ?? null,
-          opData?.checked_count ?? null,
-          userId,
-          opData?.created_by ?? null,
-          createdAt,
-          createdAt,
-        ],
-      );
+          title: opData?.title ?? null,
+          type: opData?.type ?? null,
+          status: opData?.status ?? ManifestStatus.DRAFT,
+          est_total: opData?.est_total ?? null,
+          confidence: opData?.confidence ?? null,
+          checked_count: opData?.checked_count ?? null,
+          user_id: userId as string,
+          created_by: opData?.created_by ?? null,
+          created_at: createdAt,
+          updated_at: createdAt,
+        },
+        update: {
+          title: opData?.title ?? null,
+          type: opData?.type ?? null,
+          status: opData?.status ?? ManifestStatus.DRAFT,
+          est_total: opData?.est_total ?? null,
+          confidence: opData?.confidence ?? null,
+          checked_count: opData?.checked_count ?? null,
+          user_id: userId as string,
+          updated_at: createdAt,
+        },
+      });
 
       processed++;
     }
@@ -738,15 +726,18 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        const existing = await db.query("SELECT status FROM manifests WHERE id = $1", [id]);
-        if (existing.rowCount === null || existing.rowCount === 0) {
+        const existing = await prisma.manifest.findUnique({
+          where: { id },
+          select: { status: true },
+        });
+        if (!existing) {
           return NextResponse.json(
             { error: "manifest", message: "Manifest does not exist" },
             { status: 400 },
           );
         }
 
-        const currentStatus = existing.rows[0].status;
+        const currentStatus = existing.status;
         const expectedNext = ALLOWED_STATUS_TRANSITIONS[currentStatus];
         if (!expectedNext || opData.status !== expectedNext) {
           return NextResponse.json(
@@ -764,14 +755,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
-      });
-
-      const query = `UPDATE manifests SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-
-      await db.query(query, values);
+      await prisma.manifest.updateMany({ where: { id }, data: opData });
 
       processed++;
     }
@@ -783,7 +767,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      await db.query("DELETE FROM manifests WHERE id = $1", [id]);
+      await prisma.manifest.deleteMany({ where: { id } });
 
       processed++;
     }
@@ -815,28 +799,28 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      await db.query(
-        `INSERT INTO manifest_items (id, manifest_id, item_id, item_name, checked, prev_price, location, is_unknown)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (id) DO UPDATE SET
-           manifest_id = EXCLUDED.manifest_id,
-           item_id = EXCLUDED.item_id,
-           item_name = EXCLUDED.item_name,
-           checked = EXCLUDED.checked,
-           prev_price = EXCLUDED.prev_price,
-           location = EXCLUDED.location,
-           is_unknown = EXCLUDED.is_unknown`,
-        [
+      await prisma.manifestItem.upsert({
+        where: { id },
+        create: {
           id,
-          manifestId,
-          itemId ?? null,
-          opData?.item_name ?? null,
-          opData?.checked ?? false,
-          opData?.prev_price ?? null,
-          opData?.location ?? null,
-          opData?.is_unknown ?? false,
-        ],
-      );
+          manifest_id: manifestId,
+          item_id: itemId ?? null,
+          item_name: opData?.item_name ?? null,
+          checked: opData?.checked ?? false,
+          prev_price: opData?.prev_price ?? null,
+          location: opData?.location ?? null,
+          is_unknown: opData?.is_unknown ?? false,
+        },
+        update: {
+          manifest_id: manifestId,
+          item_id: itemId ?? null,
+          item_name: opData?.item_name ?? null,
+          checked: opData?.checked ?? false,
+          prev_price: opData?.prev_price ?? null,
+          location: opData?.location ?? null,
+          is_unknown: opData?.is_unknown ?? false,
+        },
+      });
 
       await recalculateEstTotal(manifestId);
 
@@ -855,14 +839,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
-      });
-
-      const query = `UPDATE manifest_items SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-
-      await db.query(query, values);
+      await prisma.manifestItem.updateMany({ where: { id }, data: opData });
 
       processed++;
     }
@@ -874,16 +851,15 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const itemResult = await db.query(
-        "SELECT manifest_id FROM manifest_items WHERE id = $1",
-        [id],
-      );
-      const itemManifestId = itemResult.rows[0]?.manifest_id;
+      const item = await prisma.manifestItem.findUnique({
+        where: { id },
+        select: { manifest_id: true },
+      });
 
-      await db.query("DELETE FROM manifest_items WHERE id = $1", [id]);
+      await prisma.manifestItem.deleteMany({ where: { id } });
 
-      if (itemManifestId) {
-        await recalculateEstTotal(itemManifestId);
+      if (item?.manifest_id) {
+        await recalculateEstTotal(item.manifest_id);
       }
 
       processed++;
@@ -892,20 +868,20 @@ export async function POST(request: NextRequest) {
     if (operation.op === "PUT" && operation.table === "manifest_crew") {
       const { id, opData } = operation;
 
-      await db.query(
-        `INSERT INTO manifest_crew (id, manifest_id, user_id, role)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (id) DO UPDATE SET
-           manifest_id = EXCLUDED.manifest_id,
-           user_id = EXCLUDED.user_id,
-           role = EXCLUDED.role`,
-        [
+      await prisma.manifestCrew.upsert({
+        where: { id },
+        create: {
           id,
-          opData?.manifest_id ?? null,
-          opData?.user_id ?? null,
-          opData?.role ?? "OPERATOR",
-        ],
-      );
+          manifest_id: opData?.manifest_id as string,
+          user_id: opData?.user_id as string,
+          role: opData?.role ?? "OPERATOR",
+        },
+        update: {
+          manifest_id: opData?.manifest_id as string,
+          user_id: opData?.user_id as string,
+          role: opData?.role ?? "OPERATOR",
+        },
+      });
 
       processed++;
     }
@@ -914,12 +890,11 @@ export async function POST(request: NextRequest) {
       const { id, opData } = operation;
 
       if (opData?.manifest_id && opData?.user_id) {
-        await db.query(
-          "DELETE FROM manifest_crew WHERE manifest_id = $1 AND user_id = $2",
-          [opData.manifest_id, opData.user_id],
-        );
+        await prisma.manifestCrew.deleteMany({
+          where: { manifest_id: opData.manifest_id, user_id: opData.user_id },
+        });
       } else if (id) {
-        await db.query("DELETE FROM manifest_crew WHERE id = $1", [id]);
+        await prisma.manifestCrew.deleteMany({ where: { id } });
       }
 
       processed++;
@@ -928,20 +903,26 @@ export async function POST(request: NextRequest) {
     if (operation.op === "PUT" && operation.table === "users") {
       const { id, opData } = operation;
 
-      await db.query(
-        `INSERT INTO "user" (id, name, email, callsign)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (id) DO UPDATE SET
-           name = COALESCE(EXCLUDED.name, "user".name),
-           email = COALESCE(EXCLUDED.email, "user".email),
-           callsign = COALESCE(EXCLUDED.callsign, "user".callsign)`,
-        [
+      // Preserve the previous COALESCE semantics: only overwrite fields that
+      // are actually provided (non-null); leave existing values otherwise.
+      const update: { name?: string; email?: string; callsign?: string } = {};
+      if (opData?.name != null) update.name = opData.name;
+      if (opData?.email != null) update.email = opData.email;
+      if (opData?.callsign != null) update.callsign = opData.callsign;
+
+      await prisma.user.upsert({
+        where: { id },
+        create: {
           id,
-          opData?.name ?? null,
-          opData?.email ?? null,
-          opData?.callsign ?? null,
-        ],
-      );
+          name: opData?.name ?? "",
+          email: opData?.email ?? "",
+          callsign: opData?.callsign ?? "",
+          emailVerified: false,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        update,
+      });
 
       processed++;
     }
@@ -958,14 +939,10 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
+      await prisma.user.updateMany({
+        where: { id },
+        data: remapUserData(opData),
       });
-
-      const query = `UPDATE "user" SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-
-      await db.query(query, values);
 
       processed++;
     }
@@ -977,7 +954,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      await db.query(`DELETE FROM "user" WHERE id = $1`, [id]);
+      await prisma.user.deleteMany({ where: { id } });
 
       processed++;
     }
@@ -985,23 +962,23 @@ export async function POST(request: NextRequest) {
     if (operation.op === "PUT" && operation.table === "user_crew") {
       const { id, opData } = operation;
 
-      await db.query(
-        `INSERT INTO user_crew (id, user_id_a, user_id_b, status, requested_by, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (id) DO UPDATE SET
-           status = EXCLUDED.status,
-           requested_by = EXCLUDED.requested_by,
-           updated_at = EXCLUDED.updated_at`,
-        [
+      await prisma.userCrew.upsert({
+        where: { id },
+        create: {
           id,
-          opData?.user_id_a ?? null,
-          opData?.user_id_b ?? null,
-          opData?.status ?? "pending",
-          opData?.requested_by ?? null,
-          opData?.created_at ?? new Date().toISOString(),
-          opData?.updated_at ?? new Date().toISOString(),
-        ],
-      );
+          user_id_a: opData?.user_id_a as string,
+          user_id_b: opData?.user_id_b as string,
+          status: opData?.status ?? "pending",
+          requested_by: opData?.requested_by as string,
+          created_at: opData?.created_at ?? new Date().toISOString(),
+          updated_at: opData?.updated_at ?? new Date().toISOString(),
+        },
+        update: {
+          status: opData?.status ?? "pending",
+          requested_by: opData?.requested_by as string,
+          updated_at: opData?.updated_at ?? new Date().toISOString(),
+        },
+      });
 
       processed++;
     }
@@ -1018,14 +995,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const setClauses = fields.map((field, index) => {
-        return `${field} = $${index + 2}`;
-      });
-
-      const query = `UPDATE user_crew SET ${setClauses.join(", ")} WHERE id = $1`;
-      const values = [id, ...fields.map((field) => opData[field])];
-
-      await db.query(query, values);
+      await prisma.userCrew.updateMany({ where: { id }, data: opData });
 
       processed++;
     }
@@ -1037,7 +1007,7 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      await db.query("DELETE FROM user_crew WHERE id = $1", [id]);
+      await prisma.userCrew.deleteMany({ where: { id } });
 
       processed++;
     }

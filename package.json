@@ -9,12 +9,21 @@
     "lint": "eslint",
     "test": "bun test",
     "generate-icons": "bun run scripts/generate-icons.ts",
-    "postinstall": "powersync-web copy-assets -o public"
+    "postinstall": "prisma generate && powersync-web copy-assets -o public",
+    "prebuild": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio",
+    "prisma:db:pull": "prisma db pull",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:resolve": "prisma migrate resolve",
+    "prisma:diff": "prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --script"
   },
   "dependencies": {
     "@journeyapps/wa-sqlite": "^1.5.0",
     "@powersync/react": "^1.9.1",
     "@powersync/web": "^1.37.0",
+    "@prisma/adapter-pg": "^7.9.0",
     "@yudiel/react-qr-scanner": "^2.5.1",
     "better-auth": "^1.6.2",
     "html5-qrcode": "^2.3.8",
@@ -25,6 +34,7 @@
     "resend": "^6.12.4"
   },
   "devDependencies": {
+    "@prisma/client": "^7.9.0",
     "@serwist/turbopack": "^9.5.11",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
@@ -40,6 +50,7 @@
     "eslint-config-next": "16.2.1",
     "jsdom": "^29.0.1",
     "pg": "^8.20.0",
+    "prisma": "^7.9.0",
     "serwist": "^9.5.11",
     "sharp": "^0.35.2",
     "tailwindcss": "^4",

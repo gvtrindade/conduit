@@ -1,0 +1,349 @@
+// Prisma schema for the PostgreSQL database that PowerSync replicates from.
+//
+// Role of this file:
+//   - Single source of truth for entity definitions (tables, columns, enums, relations).
+//   - Generates DB migrations for the Postgres backend via `prisma migrate`.
+//
+// IMPORTANT: PowerSync remains the ONLY runtime data access layer for the app.
+//   - All CRUD in app code goes through PowerSync (lib/powersync/AppSchema.ts).
+//   - Do NOT import @prisma/client into app/runtime code for queries/mutations.
+//   - @prisma/client is generated only for typing/entity organization.
+//
+// The legacy hand-written SQL migrations in /migrations are the already-applied
+// baseline. They are baselined here via `prisma/migrations/0_init` (marked applied).
+// New schema changes are made in this file and deployed with `prisma migrate dev`.
+
+// NOTE: Prisma ORM v7 — `datasource.url` lives in `prisma.config.ts`, not here.
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  // Entry file is `prisma/generated/client.ts` -> import `@/prisma/generated/client`.
+  // Generated client is git-ignored; run `bun run prisma:generate` before build.
+  output   = "./generated"
+}
+
+// ──────────────────────────────── Enums ────────────────────────────────
+
+enum ReceiptStatus {
+  PENDING
+  PROCESSING
+  OK
+  ERR
+
+  @@map("receipt_status")
+}
+
+enum ManifestStatus {
+  DRAFT
+  ACTIVE
+  DONE
+  ARCHIVED
+
+  @@map("manifest_status")
+}
+
+enum ManifestType {
+  WEEKLY
+  BULK
+  MONTHLY
+  HEALTH
+  SEASONAL
+  QUICK
+  TARGETED
+  CUSTOM
+
+  @@map("manifest_type")
+}
+
+// ──────────────────────────── Better-auth tables ────────────────────────────
+// camelCase columns match better-auth's schema. `"user"` is a reserved word in
+// Postgres, hence the lowercase @@map.
+
+model User {
+  id            String   @id
+  name          String
+  email         String   @unique
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime @db.Timestamptz
+  updatedAt     DateTime @db.Timestamptz
+
+  // Added in 001_reference_data.sql
+  callsign String
+  rank     String?
+  role     String?
+  color    String?
+
+  // Added in 002_add_preferences_and_cleanup.sql
+  preferences Json? @db.JsonB
+
+  // Relations
+  sessions         Session[]
+  accounts         Account[]
+  manifestsCreated Manifest[]     @relation("manifest_created_by")
+  manifestCrew     ManifestCrew[]
+  crewAsA          UserCrew[]     @relation("user_crew_a")
+  crewAsB          UserCrew[]     @relation("user_crew_b")
+  crewRequested    UserCrew[]     @relation("user_crew_requested")
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime @db.Timestamptz
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @db.Timestamptz
+  updatedAt DateTime @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz
+  refreshTokenExpiresAt DateTime? @db.Timestamptz
+  scope                 String?
+  idToken               String?
+  password              String?
+  createdAt             DateTime  @db.Timestamptz
+  updatedAt             DateTime  @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz
+  createdAt  DateTime @db.Timestamptz
+  updatedAt  DateTime @db.Timestamptz
+
+  @@map("verification")
+}
+
+model Jwks {
+  id         String    @id
+  publicKey  String
+  privateKey String
+  createdAt  DateTime  @db.Timestamptz
+  expiresAt  DateTime? @db.Timestamptz
+
+  @@map("jwks")
+}
+
+// ──────────────────────────── Reference / app tables ────────────────────────────
+// snake_case columns (matching the SQL migrations). UUID PKs default to
+// gen_random_uuid() to match the existing migrations exactly.
+
+model Category {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  emoji         String?
+  description   String?
+  is_controlled Boolean  @default(false)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  // Added in 005 (no FK declared in migrations)
+  user_id       String
+
+  items Item[]
+
+  @@map("categories")
+}
+
+model Tag {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  is_controlled Boolean  @default(false)
+  created_at    DateTime @default(now()) @db.Timestamptz
+  // Added in 005 (no FK declared in migrations)
+  user_id       String
+
+  items Item[]
+
+  @@map("tags")
+}
+
+model Merchant {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  emoji      String?
+  created_at DateTime @default(now()) @db.Timestamptz
+  // Added in 006
+  cnpj       String?
+  // Added in 005 (no FK declared in migrations)
+  user_id    String
+
+  items        Item[]         @relation("item_freq_source")
+  priceHistory PriceHistory[]
+  receipts     Receipt[]
+
+  @@map("merchants")
+}
+
+model Item {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name               String
+  codename           String?
+  emoji              String?
+  category_id        String?   @db.Uuid
+  category_custom    String?
+  primary_tag_id     String?   @db.Uuid
+  primary_tag_custom String?
+  unit               String?
+  last_price         Decimal?
+  last_price_date    DateTime? @db.Timestamptz
+  lowest_price       Decimal?
+  lowest_price_date  DateTime? @db.Timestamptz
+  freq_source_id     String?   @db.Uuid
+  created_at         DateTime  @default(now()) @db.Timestamptz
+  updated_at         DateTime  @default(now()) @db.Timestamptz
+  // Added in 006
+  code               String?
+  // Added in 005 (no FK declared in migrations)
+  user_id            String
+
+  category      Category?      @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  primary_tag   Tag?           @relation(fields: [primary_tag_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  freq_source   Merchant?      @relation("item_freq_source", fields: [freq_source_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  priceHistory  PriceHistory[]
+  receiptItems  ReceiptItem[]
+  manifestItems ManifestItem[]
+
+  @@map("items")
+}
+
+model PriceHistory {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  item_id     String   @db.Uuid
+  price       Decimal
+  merchant_id String   @db.Uuid
+  recorded_at DateTime @default(now()) @db.Timestamptz
+
+  item     Item     @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchant Merchant @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("price_history")
+}
+
+model Receipt {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id        String        @db.Uuid
+  receipt_date       DateTime?     @db.Timestamptz
+  total              Decimal?
+  item_count         Int?
+  status             ReceiptStatus @default(PENDING)
+  savings            Decimal?
+  linked_manifest_id String?       @db.Uuid
+  processed_at       DateTime?     @db.Timestamptz
+  created_at         DateTime      @default(now()) @db.Timestamptz
+  // Added in 007
+  nfce               String?
+  // Added in 005 (no FK declared in migrations)
+  user_id            String?
+
+  merchant     Merchant      @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  receiptItems ReceiptItem[]
+
+  @@map("receipts")
+}
+
+model ReceiptItem {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receipt_id      String   @db.Uuid
+  item_id         String?  @db.Uuid
+  // item_name was dropped in 002
+  qty             String?
+  unit_price      Decimal?
+  total           Decimal?
+  category_custom String?
+  tags_custom     String?
+
+  receipt Receipt @relation(fields: [receipt_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  item    Item?   @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("receipt_items")
+}
+
+model Manifest {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String?
+  type          ManifestType?
+  status        ManifestStatus @default(DRAFT)
+  est_total     Decimal?
+  confidence    String?
+  checked_count Int            @default(0)
+  created_by    String?
+  created_at    DateTime       @default(now()) @db.Timestamptz
+  updated_at    DateTime       @default(now()) @db.Timestamptz
+  // Added in 005 (no FK declared in migrations)
+  user_id       String
+
+  createdBy     User?          @relation("manifest_created_by", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  manifestItems ManifestItem[]
+  crew          ManifestCrew[]
+
+  @@map("manifests")
+}
+
+model ManifestItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  manifest_id String   @db.Uuid
+  item_id     String?  @db.Uuid
+  item_name   String?
+  checked     Boolean  @default(false)
+  prev_price  Decimal?
+  location    String?
+  is_unknown  Boolean  @default(false)
+
+  manifest Manifest @relation(fields: [manifest_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  item     Item?    @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("manifest_items")
+}
+
+model ManifestCrew {
+  // id added in 009 (UUID, NOT NULL, no default in DB).
+  id          String  @id @db.Uuid
+  manifest_id String  @db.Uuid
+  user_id     String
+  role        String?
+
+  manifest Manifest @relation(fields: [manifest_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user     User     @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([manifest_id, user_id])
+  @@map("manifest_crew")
+}
+
+model UserCrew {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id_a    String
+  user_id_b    String
+  status       String   @default("pending")
+  requested_by String
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @db.Timestamptz
+
+  userA       User @relation("user_crew_a", fields: [user_id_a], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userB       User @relation("user_crew_b", fields: [user_id_b], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requestedBy User @relation("user_crew_requested", fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("user_crew")
+}

@@ -1,2 +1,0 @@
-ALTER TABLE merchants ADD COLUMN cnpj TEXT;
-ALTER TABLE items ADD COLUMN code TEXT;

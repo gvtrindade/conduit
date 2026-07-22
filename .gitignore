@@ -56,3 +56,6 @@ certificates
 # serwist
 public/sw*
 public/swe-worker*
+
+# Prisma generated client (schema + migrations are committed; client output is not)
+prisma/generated/
