@@ -107,27 +107,12 @@ export const ManifestStatus = {
 
 export type ManifestStatus = (typeof ManifestStatus)[keyof typeof ManifestStatus];
 
-export const ManifestType = {
-  WEEKLY: "WEEKLY",
-  BULK: "BULK",
-  MONTHLY: "MONTHLY",
-  HEALTH: "HEALTH",
-  SEASONAL: "SEASONAL",
-  QUICK: "QUICK",
-  TARGETED: "TARGETED",
-  CUSTOM: "CUSTOM",
-} as const;
-
-export type ManifestType = (typeof ManifestType)[keyof typeof ManifestType];
-
 export interface DbManifest {
   id: string;
   title: string | null;
-  type: ManifestType | null;
+  merchant_name: string | null;
+  items: string; // JSON string — parsed client-side
   status: ManifestStatus;
-  est_total: number | null;
-  confidence: string | null;
-  checked_count: number | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -135,13 +120,11 @@ export interface DbManifest {
 
 export interface DbManifestItem {
   id: string;
-  manifest_id: string;
-  item_id: string | null;
-  item_name: string | null;
-  checked: boolean;
-  prev_price: number | null;
-  location: string | null;
-  is_unknown: boolean;
+  name: string;
+  category: string | null;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface DbManifestCrew {

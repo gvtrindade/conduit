@@ -45,18 +45,6 @@ enum ManifestStatus {
   @@map("manifest_status")
 }
 
-enum ManifestType {
-  WEEKLY
-  BULK
-  MONTHLY
-  HEALTH
-  SEASONAL
-  QUICK
-  TARGETED
-  CUSTOM
-
-  @@map("manifest_type")
-}
 
 // ──────────────────────────── Better-auth tables ────────────────────────────
 // camelCase columns match better-auth's schema. `"user"` is a reserved word in
@@ -190,9 +178,11 @@ model Merchant {
   // Added in 005 (no FK declared in migrations)
   user_id    String
 
-  items        Item[]         @relation("item_freq_source")
+  items        Item[]             @relation("item_freq_source")
   priceHistory PriceHistory[]
   receipts     Receipt[]
+  aisles       MerchantAisle[]
+  itemRules    MerchantItemRule[]
 
   @@map("merchants")
 }
@@ -224,7 +214,6 @@ model Item {
   freq_source   Merchant?      @relation("item_freq_source", fields: [freq_source_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   priceHistory  PriceHistory[]
   receiptItems  ReceiptItem[]
-  manifestItems ManifestItem[]
 
   @@map("items")
 }
@@ -284,38 +273,68 @@ model ReceiptItem {
 model Manifest {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title         String?
-  type          ManifestType?
   status        ManifestStatus @default(DRAFT)
-  est_total     Decimal?
-  confidence    String?
-  checked_count Int            @default(0)
+  merchant_name String?
+  items         Json           @default("[]") @db.JsonB
   created_by    String?
   created_at    DateTime       @default(now()) @db.Timestamptz
   updated_at    DateTime       @default(now()) @db.Timestamptz
   // Added in 005 (no FK declared in migrations)
   user_id       String
 
-  createdBy     User?          @relation("manifest_created_by", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  manifestItems ManifestItem[]
-  crew          ManifestCrew[]
+  createdBy User?          @relation("manifest_created_by", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  crew      ManifestCrew[]
 
   @@map("manifests")
 }
 
+// Catalog of reusable items (the pool the add-items picker lists from).
+// Unrelated to the receipts-driven `items` table.
 model ManifestItem {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  manifest_id String   @db.Uuid
-  item_id     String?  @db.Uuid
-  item_name   String?
-  checked     Boolean  @default(false)
-  prev_price  Decimal?
-  location    String?
-  is_unknown  Boolean  @default(false)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String
+  category   String?
+  user_id    String
+  created_at DateTime @default(now()) @db.Timestamptz
+  updated_at DateTime @default(now()) @db.Timestamptz
 
-  manifest Manifest @relation(fields: [manifest_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  item     Item?    @relation(fields: [item_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  merchantItemRules MerchantItemRule[]
 
   @@map("manifest_items")
+}
+
+// Per-merchant ordered list of aisles (categories). Free text, no FK to categories.
+model MerchantAisle {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id String   @db.Uuid
+  category    String
+  sort_order  Int      @map("order")
+  user_id     String
+  created_at  DateTime @default(now()) @db.Timestamptz
+
+  merchant Merchant @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([merchant_id, category])
+  @@index([merchant_id])
+  @@map("merchant_aisles")
+}
+
+// Per-merchant category override for a catalog item.
+model MerchantItemRule {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchant_id      String   @db.Uuid
+  manifest_item_id String   @db.Uuid
+  category         String
+  sort_order       Int      @map("order")
+  user_id          String
+  created_at       DateTime @default(now()) @db.Timestamptz
+
+  merchant     Merchant     @relation(fields: [merchant_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  manifestItem ManifestItem @relation(fields: [manifest_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([merchant_id, manifest_item_id])
+  @@index([merchant_id])
+  @@map("merchant_item_rules")
 }
 
 model ManifestCrew {
@@ -346,4 +365,18 @@ model UserCrew {
   requestedBy User @relation("user_crew_requested", fields: [requested_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("user_crew")
+}
+
+model ProcessingRule {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String
+  category     String
+  scope_entity String?
+  scope_id     String?
+  config       Json     @db.JsonB
+  enabled      Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.Timestamptz
+  updated_at   DateTime @default(now()) @db.Timestamptz
+
+  @@map("processing_rules")
 }

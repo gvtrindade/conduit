@@ -135,45 +135,34 @@ describe("db types exist", () => {
     expect(mod.ManifestStatus.ARCHIVED).toBe("ARCHIVED");
   });
 
-  it("exports ManifestTypeEnum", async () => {
-    const mod = await import("@/lib/db-types");
-    expect(mod.ManifestType.WEEKLY).toBe("WEEKLY");
-    expect(mod.ManifestType.BULK).toBe("BULK");
-    expect(mod.ManifestType.MONTHLY).toBe("MONTHLY");
-    expect(mod.ManifestType.HEALTH).toBe("HEALTH");
-    expect(mod.ManifestType.SEASONAL).toBe("SEASONAL");
-  });
-
   it("exports DbManifest type", async () => {
     const mod = await import("@/lib/db-types");
     const m: mod.DbManifest = {
       id: "uuid",
       title: "Weekly Run",
-      type: mod.ManifestType.WEEKLY,
+      merchant_name: "TEST_MART",
+      items: "[]",
       status: mod.ManifestStatus.ACTIVE,
-      est_total: 150.0,
-      confidence: "high",
-      checked_count: 3,
       created_by: "uuid",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
     expect(m.title).toBe("Weekly Run");
+    expect(m.merchant_name).toBe("TEST_MART");
   });
 
-  it("exports DbManifestItem type", async () => {
+  it("exports DbManifestItem type (catalog shape)", async () => {
     const mod = await import("@/lib/db-types");
     const mi: mod.DbManifestItem = {
       id: "uuid",
-      manifest_id: "uuid",
-      item_id: "uuid",
-      item_name: "Milk",
-      checked: false,
-      prev_price: 3.49,
-      location: "Aisle 4",
-      is_unknown: false,
+      name: "Milk",
+      category: "DAIRY",
+      user_id: "user-1",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
-    expect(mi.checked).toBe(false);
+    expect(mi.name).toBe("Milk");
+    expect(mi.category).toBe("DAIRY");
   });
 
   it("exports DbManifestCrew type", async () => {

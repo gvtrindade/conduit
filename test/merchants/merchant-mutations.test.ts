@@ -14,10 +14,11 @@ describe("Merchant mutations", () => {
     const data = {
       name: "Test Merchant",
       emoji: "🏪",
+      user_id: "user-123",
       created_at: new Date().toISOString(),
     };
 
-    const result = await createMerchant(mockDb, data, "user-123");
+    const result = await createMerchant(mockDb, data);
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];

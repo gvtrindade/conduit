@@ -48,13 +48,11 @@ export interface Item {
 }
 
 export interface ManifestItem {
-  id: string;
-  itemId: string | null;
+  manifestItemId: string | null;
   name: string;
+  estimated_cost: string;
   checked: boolean;
-  prevPrice: number | null;
-  location: string | null;
-  unknown: boolean;
+  category: string | null;
 }
 
 export interface CrewMember {
@@ -69,14 +67,11 @@ export interface CrewMember {
 export interface Manifest {
   id: string;
   title: string;
-  type: string;
   status: 'active' | 'draft' | 'done' | 'archived';
-  estTotal: number;
-  confidence: string;
+  merchantName: string | null;
   items: ManifestItem[];
   crew: CrewMember[];
   lastModified: string;
-  checkedCount: number;
   createdBy?: string | null;
   createdByCallsign?: string;
 }

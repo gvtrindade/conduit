@@ -115,11 +115,9 @@ const receipt_items = new Table(
 const manifests = new Table(
   {
     title: column.text,
-    type: column.text,
     status: column.text,
-    est_total: column.real,
-    confidence: column.text,
-    checked_count: column.integer,
+    merchant_name: column.text,
+    items: column.text,
     user_id: column.text,
     created_by: column.text,
     created_at: column.text,
@@ -130,13 +128,34 @@ const manifests = new Table(
 
 const manifest_items = new Table(
   {
-    manifest_id: column.text,
-    item_id: column.text,
-    item_name: column.text,
-    checked: column.integer,
-    prev_price: column.real,
-    location: column.text,
-    is_unknown: column.integer,
+    name: column.text,
+    category: column.text,
+    user_id: column.text,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: {} },
+);
+
+const merchant_aisles = new Table(
+  {
+    merchant_id: column.text,
+    category: column.text,
+    order: column.integer,
+    user_id: column.text,
+    created_at: column.text,
+  },
+  { indexes: {} },
+);
+
+const merchant_item_rules = new Table(
+  {
+    merchant_id: column.text,
+    manifest_item_id: column.text,
+    category: column.text,
+    order: column.integer,
+    user_id: column.text,
+    created_at: column.text,
   },
   { indexes: {} },
 );
@@ -164,6 +183,21 @@ const user_crew = new Table(
   { indexes: {} },
 );
 
+const processing_rules = new Table(
+  {
+    id: column.text,
+    user_id: column.text,
+    category: column.text,
+    scope_entity: column.text,
+    scope_id: column.text,
+    config: column.text,
+    enabled: column.integer,
+    created_at: column.text,
+    updated_at: column.text,
+  },
+  { indexes: {} },
+);
+
 export const AppSchema = new Schema({
   categories,
   tags,
@@ -175,11 +209,14 @@ export const AppSchema = new Schema({
   receipt_items,
   manifests,
   manifest_items,
+  merchant_aisles,
+  merchant_item_rules,
   manifest_crew,
   user_crew,
+  processing_rules,
 });
 
-export { categories, tags, users, merchants, items, price_history, receipts, receipt_items, manifests, manifest_items, manifest_crew, user_crew };
+export { categories, tags, users, merchants, items, price_history, receipts, receipt_items, manifests, manifest_items, merchant_aisles, merchant_item_rules, manifest_crew, user_crew, processing_rules };
 
 export const ALLOWED_TABLES = new Set([
   "categories",
@@ -192,8 +229,11 @@ export const ALLOWED_TABLES = new Set([
   "receipt_items",
   "manifests",
   "manifest_items",
+  "merchant_aisles",
+  "merchant_item_rules",
   "manifest_crew",
   "user_crew",
+  "processing_rules",
 ]);
 
 export type Database = (typeof AppSchema)["types"];

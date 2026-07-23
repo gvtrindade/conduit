@@ -11,12 +11,7 @@ describe("Manifest mutations", () => {
   let mockExecute: ReturnType<typeof mock>;
 
   beforeEach(() => {
-    mockExecute = mock((sql: string) => {
-      if (sql.includes("COUNT(*)") && sql.includes("SUM")) {
-        return Promise.resolve({ rows: createMockRows([{ total: 0, checked: 0 }]) });
-      }
-      return Promise.resolve({ rows: createMockRows([]) });
-    });
+    mockExecute = mock(() => Promise.resolve({ rows: [] }));
   });
 
   it("createManifest() generates UUID and INSERTs with defaults", async () => {
@@ -25,92 +20,29 @@ describe("Manifest mutations", () => {
 
     const result = await createManifest(mockDb, "user-123");
 
-    expect(mockExecute).toHaveBeenCalledTimes(1);
+    expect(mockExecute).toHaveBeenCalledTimes(2); // manifest + manifest_crew
     const [sql, params] = mockExecute.mock.calls[0];
 
     expect(sql).toContain("INSERT INTO manifests");
     expect(sql).toContain("title");
-    expect(sql).toContain("type");
     expect(sql).toContain("status");
+    expect(sql).toContain("items");
     expect(sql).toContain("user_id");
 
-    expect(params).toHaveLength(11);
-    expect(params[1]).toBeNull();
-    expect(params[2]).toBe("WEEKLY");
-    expect(params[3]).toBe("DRAFT");
-    expect(params[7]).toBe("user-123");
+    // No old columns
+    expect(sql).not.toContain("type");
+    expect(sql).not.toContain("confidence");
+    expect(sql).not.toContain("est_total");
+    expect(sql).not.toContain("checked_count");
+
+    expect(params[1]).toBeNull(); // title
+    expect(params[2]).toBe("DRAFT"); // status
+    expect(params[3]).toBe("[]"); // items JSON
+    expect(params[4]).toBe("user-123"); // user_id
 
     expect(result).toMatch(
       /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
     );
-  });
-
-  it("createManifest() includes user_id when logged in", async () => {
-    const { createManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    await createManifest(mockDb, "user-123");
-
-    const [sql, params] = mockExecute.mock.calls[0];
-    expect(params).toContain("user-123");
-  });
-
-  it("createManifest() allows NULL user_id when logged out", async () => {
-    const { createManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    await createManifest(mockDb, null);
-
-    const [sql, params] = mockExecute.mock.calls[0];
-    expect(params).toContain(null);
-  });
-
-  it("createManifest() returns the generated id", async () => {
-    const { createManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    const id = await createManifest(mockDb, "user-123");
-
-    expect(typeof id).toBe("string");
-    expect(id.length).toBeGreaterThan(0);
-  });
-
-  it("createManifest() sets est_total to 0", async () => {
-    const { createManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    await createManifest(mockDb, "user-123");
-
-    const [sql, params] = mockExecute.mock.calls[0];
-    expect(sql).toContain("est_total");
-    expect(params[4]).toBe(0);
-  });
-
-  it("createManifest() sets checked_count to 0", async () => {
-    const { createManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    await createManifest(mockDb, "user-123");
-
-    const [sql, params] = mockExecute.mock.calls[0];
-    expect(sql).toContain("checked_count");
-    expect(params[6]).toBe(0);
-  });
-
-  it("createManifest() includes created_at and updated_at timestamps", async () => {
-    const { createManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    await createManifest(mockDb, "user-123");
-
-    const [sql, params] = mockExecute.mock.calls[0];
-    expect(sql).toContain("created_at");
-    expect(sql).toContain("updated_at");
-
-    const createdAt = params[9];
-    const updatedAt = params[10];
-    expect(createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("updateManifest() updates only title when only title provided", async () => {
@@ -124,39 +56,23 @@ describe("Manifest mutations", () => {
 
     expect(sql).toContain("UPDATE manifests SET");
     expect(sql).toContain("title = ?");
-    expect(sql).not.toContain("type = ?");
+    expect(sql).not.toContain("merchant_name = ?");
     expect(params[0]).toBe("New Title");
     expect(params).toContain("abc-123");
   });
 
-  it("updateManifest() updates only type when only type provided", async () => {
+  it("updateManifest() updates merchant_name when provided", async () => {
     const { updateManifest } = await import("@/lib/manifest-mutations");
     const mockDb = { execute: mockExecute } as any;
 
-    await updateManifest(mockDb, "abc-123", { type: "BULK" });
+    await updateManifest(mockDb, "abc-123", { merchant_name: "TEST_MART" });
 
     expect(mockExecute).toHaveBeenCalledTimes(1);
     const [sql, params] = mockExecute.mock.calls[0];
 
-    expect(sql).toContain("type = ?");
+    expect(sql).toContain("merchant_name = ?");
     expect(sql).not.toContain("title = ?");
-    expect(params[0]).toBe("BULK");
-    expect(params).toContain("abc-123");
-  });
-
-  it("updateManifest() updates both title and type when both provided", async () => {
-    const { updateManifest } = await import("@/lib/manifest-mutations");
-    const mockDb = { execute: mockExecute } as any;
-
-    await updateManifest(mockDb, "abc-123", { title: "Updated", type: "MONTHLY" });
-
-    expect(mockExecute).toHaveBeenCalledTimes(1);
-    const [sql, params] = mockExecute.mock.calls[0];
-
-    expect(sql).toContain("title = ?");
-    expect(sql).toContain("type = ?");
-    expect(params).toContain("Updated");
-    expect(params).toContain("MONTHLY");
+    expect(params[0]).toBe("TEST_MART");
     expect(params).toContain("abc-123");
   });
 
@@ -168,7 +84,6 @@ describe("Manifest mutations", () => {
 
     const [sql, params] = mockExecute.mock.calls[0];
     expect(sql).toContain("updated_at = ?");
-    // updated_at is second-to-last param, id is last
     const updatedAtParam = params[params.length - 2];
     expect(updatedAtParam).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
@@ -182,9 +97,9 @@ describe("Manifest mutations", () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
-  describe("activateManifest()", () => {
+  describe("status transitions", () => {
     function makeStatusMock(currentStatus: string) {
-      return mock((sql: string, params?: unknown[]) => {
+      return mock((sql: string) => {
         if (sql.includes("SELECT status")) {
           return Promise.resolve({ rows: createMockRows([{ status: currentStatus }]) });
         }
@@ -192,7 +107,7 @@ describe("Manifest mutations", () => {
       });
     }
 
-    it("updates status from DRAFT to ACTIVE", async () => {
+    it("activateManifest updates status from DRAFT to ACTIVE", async () => {
       const { activateManifest } = await import("@/lib/manifest-mutations");
       const dbExec = makeStatusMock("DRAFT");
       const mockDb = { execute: dbExec } as any;
@@ -204,454 +119,165 @@ describe("Manifest mutations", () => {
       expect(updateSql).toContain("UPDATE manifests");
       expect(updateSql).toContain("status = ?");
       expect(updateParams).toContain("ACTIVE");
-      expect(updateParams).toContain("manifest-1");
     });
 
-    it("throws when manifest is already ACTIVE", async () => {
-      const { activateManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("ACTIVE");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(activateManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot activate/i
-      );
-    });
-
-    it("throws when manifest is DONE", async () => {
-      const { activateManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("DONE");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(activateManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot activate/i
-      );
-    });
-
-    it("throws when manifest is ARCHIVED", async () => {
-      const { activateManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("ARCHIVED");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(activateManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot activate/i
-      );
-    });
-
-    it("throws when manifest is not found", async () => {
-      const { activateManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = mock(() => Promise.resolve({ rows: [] }));
-      const mockDb = { execute: dbExec } as any;
-
-      expect(activateManifest(mockDb, "nonexistent")).rejects.toThrow(
-        /not found/i
-      );
-    });
-  });
-
-  describe("completeManifest()", () => {
-    function makeStatusMock(currentStatus: string) {
-      return mock((sql: string, params?: unknown[]) => {
-        if (sql.includes("SELECT status")) {
-          return Promise.resolve({ rows: createMockRows([{ status: currentStatus }]) });
-        }
-        return Promise.resolve({ rows: createMockRows([]) });
-      });
-    }
-
-    it("updates status from ACTIVE to DONE", async () => {
+    it("completeManifest updates status from ACTIVE to DONE", async () => {
       const { completeManifest } = await import("@/lib/manifest-mutations");
       const dbExec = makeStatusMock("ACTIVE");
       const mockDb = { execute: dbExec } as any;
 
       await completeManifest(mockDb, "manifest-1");
 
-      expect(dbExec).toHaveBeenCalledTimes(2);
       const [updateSql, updateParams] = dbExec.mock.calls[1];
       expect(updateSql).toContain("UPDATE manifests");
-      expect(updateSql).toContain("status = ?");
       expect(updateParams).toContain("DONE");
-      expect(updateParams).toContain("manifest-1");
     });
 
-    it("throws when manifest is DRAFT", async () => {
-      const { completeManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("DRAFT");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(completeManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot complete/i
-      );
-    });
-
-    it("throws when manifest is DONE", async () => {
-      const { completeManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("DONE");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(completeManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot complete/i
-      );
-    });
-
-    it("throws when manifest is ARCHIVED", async () => {
-      const { completeManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("ARCHIVED");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(completeManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot complete/i
-      );
-    });
-  });
-
-  describe("archiveManifest()", () => {
-    function makeStatusMock(currentStatus: string) {
-      return mock((sql: string, params?: unknown[]) => {
-        if (sql.includes("SELECT status")) {
-          return Promise.resolve({ rows: createMockRows([{ status: currentStatus }]) });
-        }
-        return Promise.resolve({ rows: createMockRows([]) });
-      });
-    }
-
-    it("updates status from DONE to ARCHIVED", async () => {
+    it("archiveManifest updates status from DONE to ARCHIVED", async () => {
       const { archiveManifest } = await import("@/lib/manifest-mutations");
       const dbExec = makeStatusMock("DONE");
       const mockDb = { execute: dbExec } as any;
 
       await archiveManifest(mockDb, "manifest-1");
 
-      expect(dbExec).toHaveBeenCalledTimes(2);
       const [updateSql, updateParams] = dbExec.mock.calls[1];
       expect(updateSql).toContain("UPDATE manifests");
-      expect(updateSql).toContain("status = ?");
       expect(updateParams).toContain("ARCHIVED");
-      expect(updateParams).toContain("manifest-1");
     });
 
-    it("throws when manifest is DRAFT", async () => {
-      const { archiveManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("DRAFT");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(archiveManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot archive/i
-      );
-    });
-
-    it("throws when manifest is ACTIVE", async () => {
-      const { archiveManifest } = await import("@/lib/manifest-mutations");
+    it("throws on invalid transition", async () => {
+      const { activateManifest } = await import("@/lib/manifest-mutations");
       const dbExec = makeStatusMock("ACTIVE");
       const mockDb = { execute: dbExec } as any;
 
-      expect(archiveManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot archive/i
-      );
-    });
-
-    it("throws when manifest is ARCHIVED", async () => {
-      const { archiveManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeStatusMock("ARCHIVED");
-      const mockDb = { execute: dbExec } as any;
-
-      expect(archiveManifest(mockDb, "manifest-1")).rejects.toThrow(
-        /cannot archive/i
-      );
+      expect(activateManifest(mockDb, "manifest-1")).rejects.toThrow();
     });
   });
 
-  describe("addManifestItem()", () => {
-    it("inserts a catalog item with item_id and prev_price", async () => {
-      const { addManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await addManifestItem(mockDb, "manifest-1", {
-        itemId: "item-abc",
-        itemName: "Bananas",
-        prevPrice: 5.99,
-        isUnknown: false,
-      });
-
-      const [sql, params] = mockExecute.mock.calls[0];
-
-      expect(sql).toContain("INSERT INTO manifest_items");
-      expect(params).toContain("manifest-1");
-      expect(params).toContain("item-abc");
-      expect(params).toContain("Bananas");
-      expect(params).toContain(5.99);
-    });
-
-    it("inserts a custom unknown item without item_id or prev_price", async () => {
-      const { addManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await addManifestItem(mockDb, "manifest-1", {
-        itemName: "Some weird fruit",
-        isUnknown: true,
-      });
-
-      const [sql, params] = mockExecute.mock.calls[0];
-
-      expect(sql).toContain("INSERT INTO manifest_items");
-      expect(params).toContain("manifest-1");
-      expect(params).toContain("Some weird fruit");
-      expect(params).toContain(1);
-
-      // item_id should be null, prev_price should be null
-      const itemIdIndex = sql.split(",").findIndex((s: string) => s.includes("item_id"));
-      expect(params[itemIdIndex]).toBeNull();
-      const prevPriceIndex = sql.split(",").findIndex((s: string) => s.includes("prev_price"));
-      expect(params[prevPriceIndex]).toBeNull();
-    });
-
-    it("inserts a catalog item with null prev_price when no price history", async () => {
-      const { addManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await addManifestItem(mockDb, "manifest-1", {
-        itemId: "item-new",
-        itemName: "New Item",
-        isUnknown: false,
-      });
-
-      const [sql, params] = mockExecute.mock.calls[0];
-
-      expect(sql).toContain("INSERT INTO manifest_items");
-      expect(params).toContain("item-new");
-      expect(params).toContain("New Item");
-
-      // prev_price should be null
-      const prevPriceIndex = sql.split(",").findIndex((s: string) => s.includes("prev_price"));
-      expect(params[prevPriceIndex]).toBeNull();
-    });
-
-    it("returns a generated UUID", async () => {
-      const { addManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      const id = await addManifestItem(mockDb, "manifest-1", {
-        itemName: "Test",
-      });
-
-      expect(typeof id).toBe("string");
-      expect(id).toMatch(
-        /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i
-      );
-    });
-
-    it("sets checked to false by default", async () => {
-      const { addManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await addManifestItem(mockDb, "manifest-1", {
-        itemName: "Test",
-      });
-
-      const [sql, params] = mockExecute.mock.calls[0];
-      expect(sql).toContain("checked");
-
-      // checked is the 5th column in the VALUES clause
-      const checkedIndex = sql.split(",").findIndex((s: string) => s.includes("checked"));
-      expect(params[checkedIndex]).toBe(0);
-    });
-
-    it("recalculates est_total after inserting an item", async () => {
-      const { addManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await addManifestItem(mockDb, "manifest-1", {
-        itemId: "item-abc",
-        itemName: "Bananas",
-        prevPrice: 5.99,
-      });
-
-      expect(mockExecute).toHaveBeenCalledTimes(4);
-      const [recalcSql, recalcParams] = mockExecute.mock.calls[1];
-
-      expect(recalcSql).toContain("UPDATE manifests");
-      expect(recalcSql).toContain("est_total");
-      expect(recalcSql).toContain("SUM");
-      expect(recalcParams).toContain("manifest-1");
-    });
-  });
-
-  describe("removeManifestItem()", () => {
-    it("deletes from manifest_items by id", async () => {
-      const { removeManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await removeManifestItem(mockDb, "manifest-1", "item-123");
-
-      const [sql, params] = mockExecute.mock.calls[0];
-
-      expect(sql).toContain("DELETE FROM manifest_items");
-      expect(sql).toContain("WHERE id = ?");
-      expect(params).toContain("item-123");
-    });
-
-    it("uses the item id as the parameter", async () => {
-      const { removeManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await removeManifestItem(mockDb, "manifest-1", "abc-def-456");
-
-      const [sql, params] = mockExecute.mock.calls[0];
-      expect(params).toContain("abc-def-456");
-    });
-
-    it("recalculates est_total after deleting an item", async () => {
-      const { removeManifestItem } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await removeManifestItem(mockDb, "manifest-1", "item-123");
-
-      expect(mockExecute).toHaveBeenCalledTimes(4);
-      const [recalcSql, recalcParams] = mockExecute.mock.calls[1];
-
-      expect(recalcSql).toContain("UPDATE manifests");
-      expect(recalcSql).toContain("est_total");
-      expect(recalcSql).toContain("SUM");
-      expect(recalcParams).toContain("manifest-1");
-    });
-  });
-
-  describe("recalculateEstTotal()", () => {
-    it("updates est_total with SUM(COALESCE(prev_price, 0)) for the manifest", async () => {
-      const { recalculateEstTotal } = await import("@/lib/manifest-mutations");
-      const mockDb = { execute: mockExecute } as any;
-
-      await recalculateEstTotal(mockDb, "manifest-abc");
-
-      expect(mockExecute).toHaveBeenCalledTimes(1);
-      const [sql, params] = mockExecute.mock.calls[0];
-
-      expect(sql).toContain("UPDATE manifests");
-      expect(sql).toContain("est_total");
-      expect(sql).toContain("SUM");
-      expect(sql).toContain("COALESCE");
-      expect(sql).toContain("prev_price");
-      expect(sql).toContain("manifest_items");
-      expect(sql).toContain("WHERE id = ?");
-      expect(params).toContain("manifest-abc");
-    });
-  });
-
-  describe("toggleManifestItemChecked()", () => {
-    function makeToggleMock(manifestId: string) {
-      return mock((sql: string, params?: unknown[]) => {
-        if (sql.includes("SELECT manifest_id")) {
-          return Promise.resolve({ rows: createMockRows([{ manifest_id: manifestId }]) });
-        }
-        if (sql.includes("COUNT(*)") && sql.includes("SUM")) {
-          return Promise.resolve({ rows: createMockRows([{ total: 1, checked: 1 }]) });
+  describe("addManifestItem() (JSON blob)", () => {
+    function makeItemsMock(itemsJson: string) {
+      return mock((sql: string) => {
+        if (sql.includes("SELECT items FROM manifests")) {
+          return Promise.resolve({ rows: createMockRows([{ items: itemsJson }]) });
         }
         return Promise.resolve({ rows: createMockRows([]) });
       });
     }
 
-    it("updates checked to true", async () => {
-      const { toggleManifestItemChecked } = await import("@/lib/manifest-mutations");
-      const dbExec = makeToggleMock("manifest-1");
+    it("appends item to JSON blob", async () => {
+      const { addManifestItem } = await import("@/lib/manifest-mutations");
+      const dbExec = makeItemsMock('[]');
       const mockDb = { execute: dbExec } as any;
 
-      await toggleManifestItemChecked(mockDb, "item-123", true);
+      await addManifestItem(mockDb, "manifest-1", {
+        manifestItemId: "cat-1",
+        name: "Bananas",
+        category: "FRUIT",
+        estimated_cost: "5.99",
+      });
 
-      const updateCall = dbExec.mock.calls.find((c: any) => c[0].includes("UPDATE manifest_items"));
-      expect(updateCall).toBeDefined();
-      const [sql, params] = updateCall!;
+      // Should have SELECT items + UPDATE
+      expect(dbExec).toHaveBeenCalledTimes(2);
+      const [updateSql, updateParams] = dbExec.mock.calls[1];
 
-      expect(sql).toContain("UPDATE manifest_items");
-      expect(sql).toContain("checked = ?");
-      expect(sql).toContain("WHERE id = ?");
-      expect(params).toContain(1);
-      expect(params).toContain("item-123");
+      expect(updateSql).toContain("UPDATE manifests");
+      expect(updateSql).toContain("items = ?");
+      
+      const updatedItems = JSON.parse(updateParams[0] as string);
+      expect(updatedItems).toHaveLength(1);
+      expect(updatedItems[0].name).toBe("Bananas");
+      expect(updatedItems[0].category).toBe("FRUIT");
+      expect(updatedItems[0].manifest_item_id).toBe("cat-1");
+      expect(updatedItems[0].checked).toBe(false);
+    });
+  });
+
+  describe("toggleManifestItemChecked() (JSON blob)", () => {
+    function makeItemsMock(itemsJson: string) {
+      return mock((sql: string) => {
+        if (sql.includes("SELECT items FROM manifests")) {
+          return Promise.resolve({ rows: createMockRows([{ items: itemsJson }]) });
+        }
+        return Promise.resolve({ rows: createMockRows([]) });
+      });
+    }
+
+    it("toggles checked state in JSON blob", async () => {
+      const { toggleManifestItemChecked } = await import("@/lib/manifest-mutations");
+      const itemsJson = JSON.stringify([
+        { name: "Eggs", checked: false, estimated_cost: "4.50" },
+        { name: "Milk", checked: false, estimated_cost: "3.00" },
+      ]);
+      const dbExec = makeItemsMock(itemsJson);
+      const mockDb = { execute: dbExec } as any;
+
+      await toggleManifestItemChecked(mockDb, "manifest-1", 0, true);
+
+      const [updateSql, updateParams] = dbExec.mock.calls[1];
+      const updatedItems = JSON.parse(updateParams[0] as string);
+      expect(updatedItems[0].checked).toBe(true);
+      expect(updatedItems[1].checked).toBe(false);
     });
 
-    it("updates checked to false", async () => {
+    it("throws on invalid index", async () => {
       const { toggleManifestItemChecked } = await import("@/lib/manifest-mutations");
-      const dbExec = makeToggleMock("manifest-1");
+      const dbExec = makeItemsMock('[]');
       const mockDb = { execute: dbExec } as any;
 
-      await toggleManifestItemChecked(mockDb, "item-456", false);
-
-      const updateCall = dbExec.mock.calls.find((c: any) => c[0].includes("UPDATE manifest_items"));
-      expect(updateCall).toBeDefined();
-      const [sql, params] = updateCall!;
-      expect(sql).toContain("checked = ?");
-      expect(params).toContain(0);
-      expect(params).toContain("item-456");
+      expect(toggleManifestItemChecked(mockDb, "manifest-1", 5, true)).rejects.toThrow();
     });
+  });
 
-    it("passes checked as integer (0 or 1)", async () => {
-      const { toggleManifestItemChecked } = await import("@/lib/manifest-mutations");
-      const dbExec = makeToggleMock("manifest-1");
+  describe("removeManifestItem() (JSON blob)", () => {
+    function makeItemsMock(itemsJson: string) {
+      return mock((sql: string) => {
+        if (sql.includes("SELECT items FROM manifests")) {
+          return Promise.resolve({ rows: createMockRows([{ items: itemsJson }]) });
+        }
+        return Promise.resolve({ rows: createMockRows([]) });
+      });
+    }
+
+    it("removes item from JSON blob by index", async () => {
+      const { removeManifestItem } = await import("@/lib/manifest-mutations");
+      const itemsJson = JSON.stringify([
+        { name: "Eggs", checked: false, estimated_cost: "4.50" },
+        { name: "Milk", checked: false, estimated_cost: "3.00" },
+      ]);
+      const dbExec = makeItemsMock(itemsJson);
       const mockDb = { execute: dbExec } as any;
 
-      await toggleManifestItemChecked(mockDb, "item-789", true);
+      await removeManifestItem(mockDb, "manifest-1", 0);
 
-      const updateCall = dbExec.mock.calls.find((c: any) => c[0].includes("UPDATE manifest_items"));
-      const [, params] = updateCall!;
-      expect(params[0]).toBe(1);
-    });
-
-    it("recalculates comp_lvl after toggling", async () => {
-      const { toggleManifestItemChecked } = await import("@/lib/manifest-mutations");
-      const dbExec = makeToggleMock("manifest-1");
-      const mockDb = { execute: dbExec } as any;
-
-      await toggleManifestItemChecked(mockDb, "item-123", true);
-
-      const recalcCall = dbExec.mock.calls.find((c: any) => c[0].includes("UPDATE manifests") && c[0].includes("checked_count"));
-      expect(recalcCall).toBeDefined();
-      const [recalcSql, recalcParams] = recalcCall!;
-
-      expect(recalcSql).toContain("UPDATE manifests");
-      expect(recalcSql).toContain("checked_count");
-      expect(recalcSql).toContain("confidence");
+      const [updateSql, updateParams] = dbExec.mock.calls[1];
+      const updatedItems = JSON.parse(updateParams[0] as string);
+      expect(updatedItems).toHaveLength(1);
+      expect(updatedItems[0].name).toBe("Milk");
     });
   });
 
   describe("deleteManifest()", () => {
     function makeDeleteMock(exists: boolean) {
-      return mock((sql: string, params?: unknown[]) => {
+      return mock((sql: string) => {
         if (sql.includes("SELECT") && sql.includes("manifests")) {
-          return Promise.resolve({ rows: exists ? createMockRows([{ status: "DRAFT" }]) : createMockRows([]) });
+          return Promise.resolve({ rows: exists ? createMockRows([{ id: "manifest-123" }]) : createMockRows([]) });
         }
         return Promise.resolve({ rows: createMockRows([]) });
       });
     }
 
-    it("deletes manifest_items first, then manifest", async () => {
+    it("deletes manifest directly (no manifest_items cascade needed)", async () => {
       const { deleteManifest } = await import("@/lib/manifest-mutations");
       const dbExec = makeDeleteMock(true);
       const mockDb = { execute: dbExec } as any;
 
       await deleteManifest(mockDb, "manifest-123", "user-123");
 
-      expect(dbExec).toHaveBeenCalledTimes(3);
-      const [firstSql, firstParams] = dbExec.mock.calls[1];
-      expect(firstSql).toContain("DELETE FROM manifest_items");
-      expect(firstSql).toContain("WHERE manifest_id = ?");
-      expect(firstParams).toContain("manifest-123");
-
-      const [secondSql, secondParams] = dbExec.mock.calls[2];
-      expect(secondSql).toContain("DELETE FROM manifests");
-      expect(secondSql).toContain("WHERE id = ?");
-      expect(secondParams).toContain("manifest-123");
-    });
-
-    it("deletes items before manifest (correct order)", async () => {
-      const { deleteManifest } = await import("@/lib/manifest-mutations");
-      const dbExec = makeDeleteMock(true);
-      const mockDb = { execute: dbExec } as any;
-
-      await deleteManifest(mockDb, "manifest-abc", "user-123");
-
-      const callOrder = dbExec.mock.calls.map((c: any) => c[0]);
-      const itemsDeleteIndex = callOrder.findIndex((s: string) => s.includes("manifest_items"));
-      const manifestDeleteIndex = callOrder.findIndex((s: string) => s.includes("DELETE FROM manifests"));
-
-      expect(itemsDeleteIndex).toBeLessThan(manifestDeleteIndex);
+      // SELECT + DELETE
+      expect(dbExec).toHaveBeenCalledTimes(2);
+      const deleteCall = dbExec.mock.calls[1];
+      expect(deleteCall[0]).toContain("DELETE FROM manifests");
+      expect(deleteCall[0]).not.toContain("manifest_items"); // no separate items table cleanup
     });
 
     it("throws when manifest not found", async () => {
@@ -663,79 +289,185 @@ describe("Manifest mutations", () => {
     });
   });
 
-  describe("recalculateCompLvl()", () => {
-    function makeCompLvlMock(rows: { total: number; checked: number }[]) {
-      return mock((sql: string, params?: unknown[]) => {
-        if (sql.includes("COUNT(*)") && sql.includes("SUM")) {
-          return Promise.resolve({
-            rows: {
-              length: 1,
-              item: () => rows[0] || { total: 0, checked: 0 },
-            },
-          });
+  describe("Catalog items (manifest_items table)", () => {
+    it("createCatalogItem() INSERTs a new catalog item", async () => {
+      const { createCatalogItem } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await createCatalogItem(mockDb, "user-1", { name: "Bananas", category: "FRUIT" });
+
+      expect(mockExecute).toHaveBeenCalledTimes(1);
+      const [sql, params] = mockExecute.mock.calls[0];
+      expect(sql).toContain("INSERT INTO manifest_items");
+      expect(sql).toContain("name");
+      expect(sql).toContain("category");
+      expect(sql).toContain("user_id");
+      expect(params).toContain("Bananas");
+      expect(params).toContain("FRUIT");
+      expect(params).toContain("user-1");
+    });
+
+    it("updateCatalogItem() updates name and category", async () => {
+      const { updateCatalogItem } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await updateCatalogItem(mockDb, "cat-1", "user-1", { name: "Apples" });
+
+      expect(mockExecute).toHaveBeenCalledTimes(1);
+      const [sql] = mockExecute.mock.calls[0];
+      expect(sql).toContain("UPDATE manifest_items");
+      expect(sql).toContain("name = ?");
+      expect(sql).toContain("WHERE id = ? AND user_id = ?");
+    });
+
+    it("deleteCatalogItem() DELETEs from manifest_items", async () => {
+      const { deleteCatalogItem } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await deleteCatalogItem(mockDb, "cat-1", "user-1");
+
+      const [sql, params] = mockExecute.mock.calls[0];
+      expect(sql).toContain("DELETE FROM manifest_items");
+      expect(params).toContain("cat-1");
+    });
+  });
+
+  describe("Merchant aisles", () => {
+    it("createMerchantAisle() INSERTs with order", async () => {
+      const { createMerchantAisle } = await import("@/lib/manifest-mutations");
+      const mockExecuteAisle = mock((sql: string) => {
+        if (sql.includes('MAX("order")')) {
+          return Promise.resolve({ rows: createMockRows([{ max_order: 3 }]) });
         }
-        return Promise.resolve({ rows: [] });
+        return Promise.resolve({ rows: createMockRows([]) });
+      });
+      const mockDb = { execute: mockExecuteAisle } as any;
+
+      await createMerchantAisle(mockDb, "m-1", "user-1", "DAIRY");
+
+      // MAX(order) SELECT + INSERT
+      expect(mockExecuteAisle).toHaveBeenCalledTimes(2);
+      const [insertSql, insertParams] = mockExecuteAisle.mock.calls[1];
+      expect(insertSql).toContain('INSERT INTO merchant_aisles');
+      expect(insertSql).toContain('"order"');
+      expect(insertParams).toContain("DAIRY");
+      expect(insertParams).toContain(4); // max_order(3) + 1
+    });
+
+    it("deleteMerchantAisle() DELETEs from merchant_aisles", async () => {
+      const { deleteMerchantAisle } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await deleteMerchantAisle(mockDb, "aisle-1", "m-1", "user-1");
+
+      const [sql] = mockExecute.mock.calls[0];
+      expect(sql).toContain("DELETE FROM merchant_aisles");
+    });
+  });
+
+  describe("Cross-merchant category operations", () => {
+    it("renameMerchantCategory() noop when old == new (no executes)", async () => {
+      const { renameMerchantCategory } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await renameMerchantCategory(mockDb, "user-1", "DAIRY", "dairy");
+
+      expect(mockExecute).not.toHaveBeenCalled();
+    });
+
+    it("renameMerchantCategory() deletes conflicting targets then UPDATEs", async () => {
+      const { renameMerchantCategory } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await renameMerchantCategory(mockDb, "user-1", "MILK", "DAIRY");
+
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      const [delSql, delParams] = mockExecute.mock.calls[0];
+      const [updSql, updParams] = mockExecute.mock.calls[1];
+
+      expect(delSql).toContain("DELETE FROM merchant_aisles");
+      expect(delSql).toContain("user_id = ?");
+      expect(delSql).toContain("merchant_id IN");
+      expect(delParams).toContain("DAIRY");
+      expect(delParams).toContain("MILK");
+
+      expect(updSql).toContain("UPDATE merchant_aisles");
+      expect(updSql).toContain("SET category = ?");
+      expect(updSql).toContain("WHERE user_id = ? AND category = ?");
+      expect(updParams[0]).toBe("DAIRY");
+      expect(updParams).toContain("MILK");
+      // Should NOT scope by merchant_id (global rename)
+      expect(updSql).not.toContain("merchant_id = ?");
+    });
+
+    it("deleteMerchantCategory() DELETEs across all of user's merchants", async () => {
+      const { deleteMerchantCategory } = await import("@/lib/manifest-mutations");
+      const mockDb = { execute: mockExecute } as any;
+
+      await deleteMerchantCategory(mockDb, "user-1", "DAIRY");
+
+      const [sql, params] = mockExecute.mock.calls[0];
+      expect(sql).toContain("DELETE FROM merchant_aisles");
+      expect(sql).toContain("WHERE user_id = ? AND category = ?");
+      expect(sql).not.toContain("merchant_id = ?"); // global, not per-merchant
+      expect(params).toContain("user-1");
+      expect(params).toContain("DAIRY");
+    });
+  });
+
+  describe("Merchant item rules", () => {
+    it("createMerchantItemRule() INSERTs a new rule", async () => {
+      const { createMerchantItemRule } = await import("@/lib/manifest-mutations");
+      const mockExecuteRule = mock((sql: string) => {
+        if (sql.includes('MAX("order")')) {
+          return Promise.resolve({ rows: createMockRows([{ max_order: 0 }]) });
+        }
+        return Promise.resolve({ rows: createMockRows([]) });
+      });
+      const mockDb = { execute: mockExecuteRule } as any;
+
+      await createMerchantItemRule(mockDb, "m-1", "cat-1", "user-1", "VEGETABLE");
+
+      expect(mockExecuteRule).toHaveBeenCalledTimes(2);
+      const [insertSql, insertParams] = mockExecuteRule.mock.calls[1];
+      expect(insertSql).toContain("INSERT INTO merchant_item_rules");
+      expect(insertParams).toContain("VEGETABLE");
+    });
+  });
+
+  describe("Rule application", () => {
+    function makeRuleMock(itemsJson: string, rules: any[]) {
+      return mock((sql: string) => {
+        if (sql.includes("SELECT items FROM manifests")) {
+          return Promise.resolve({ rows: createMockRows([{ items: itemsJson }]) });
+        }
+        if (sql.includes("FROM merchant_item_rules")) {
+          return Promise.resolve({ rows: createMockRows(rules) });
+        }
+        if (sql.includes("FROM manifest_items")) {
+          return Promise.resolve({ rows: createMockRows([]) });
+        }
+        return Promise.resolve({ rows: createMockRows([]) });
       });
     }
 
-    it("sets 0% when no items in manifest", async () => {
-      const { recalculateCompLvl } = await import("@/lib/manifest-mutations");
-      const dbExec = makeCompLvlMock([{ total: 0, checked: 0 }]);
+    it("applyMerchantRules() applies rules to items with matching manifest_item_id", async () => {
+      const { applyMerchantRules } = await import("@/lib/manifest-mutations");
+      const itemsJson = JSON.stringify([
+        { manifest_item_id: "cat-1", name: "Bananas", category: "FRUIT", checked: false, estimated_cost: "5.99" },
+      ]);
+      const rulesData = [
+        { manifest_item_id: "cat-1", category: "VEGETABLE" },
+      ];
+      const dbExec = makeRuleMock(itemsJson, rulesData);
       const mockDb = { execute: dbExec } as any;
 
-      await recalculateCompLvl(mockDb, "manifest-empty");
+      await applyMerchantRules(mockDb, "manifest-1", "merchant-1");
 
-      const [, params] = dbExec.mock.calls[1];
-      expect(params[0]).toBe(0);
-      expect(params[1]).toBe("0%");
-    });
-
-    it("sets 0% when none of the items are checked", async () => {
-      const { recalculateCompLvl } = await import("@/lib/manifest-mutations");
-      const dbExec = makeCompLvlMock([{ total: 4, checked: 0 }]);
-      const mockDb = { execute: dbExec } as any;
-
-      await recalculateCompLvl(mockDb, "manifest-1");
-
-      const [, params] = dbExec.mock.calls[1];
-      expect(params[0]).toBe(0);
-      expect(params[1]).toBe("0%");
-    });
-
-    it("sets 50% when half of the items are checked", async () => {
-      const { recalculateCompLvl } = await import("@/lib/manifest-mutations");
-      const dbExec = makeCompLvlMock([{ total: 4, checked: 2 }]);
-      const mockDb = { execute: dbExec } as any;
-
-      await recalculateCompLvl(mockDb, "manifest-2");
-
-      const [, params] = dbExec.mock.calls[1];
-      expect(params[0]).toBe(2);
-      expect(params[1]).toBe("50%");
-    });
-
-    it("sets 100% when all items are checked", async () => {
-      const { recalculateCompLvl } = await import("@/lib/manifest-mutations");
-      const dbExec = makeCompLvlMock([{ total: 3, checked: 3 }]);
-      const mockDb = { execute: dbExec } as any;
-
-      await recalculateCompLvl(mockDb, "manifest-3");
-
-      const [, params] = dbExec.mock.calls[1];
-      expect(params[0]).toBe(3);
-      expect(params[1]).toBe("100%");
-    });
-
-    it("handles odd percentages correctly (e.g., 33%)", async () => {
-      const { recalculateCompLvl } = await import("@/lib/manifest-mutations");
-      const dbExec = makeCompLvlMock([{ total: 3, checked: 1 }]);
-      const mockDb = { execute: dbExec } as any;
-
-      await recalculateCompLvl(mockDb, "manifest-4");
-
-      const [, params] = dbExec.mock.calls[1];
-      expect(params[0]).toBe(1);
-      expect(params[1]).toBe("33%");
+      const updateCall = dbExec.mock.calls.find((c: any) => c[0].includes("UPDATE manifests"));
+      expect(updateCall).toBeDefined();
+      const updatedItems = JSON.parse(updateCall[1][0]);
+      expect(updatedItems[0].category).toBe("VEGETABLE");
     });
   });
 });

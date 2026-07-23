@@ -7,6 +7,7 @@ import ModalOverlay, {
 import PrefillPriceToggle from "@/components/prefill-price-toggle";
 import { disconnectDb } from "@/components/providers/SystemProvider";
 import SectionLabel from "@/components/section-label";
+import Link from "next/link";
 import Toast, { useToast } from "@/components/toast";
 import { authClient } from "@/lib/auth-client";
 import {
@@ -33,7 +34,6 @@ import {
 } from "@/lib/profile-queries";
 import type { UserProfile } from "@/lib/types";
 import { usePowerSync, useQuery } from "@powersync/react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 export default function ProfilePage() {
@@ -246,6 +246,21 @@ export default function ProfilePage() {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Merchants */}
+        <div className="px-5 pt-4 pb-3.5">
+          <SectionLabel>// MERCHANTS //</SectionLabel>
+          <Link
+            href="/merchants"
+            className="flex items-center gap-3 px-3.5 py-3.5 bg-panel border-2 border-border-custom rounded-xl cursor-pointer hover:border-amber transition-all"
+          >
+            <span className="text-lg">🏪</span>
+            <span className="flex-1 font-mono text-[10px] font-bold tracking-[0.08em] uppercase text-cream">
+              MANAGE_MERCHANTS
+            </span>
+            <span className="font-mono text-sm text-sand">›</span>
+          </Link>
         </div>
 
         {/* System Preferences */}

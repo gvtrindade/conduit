@@ -1455,10 +1455,7 @@ describe("POST /api/powersync/upload", () => {
             id: manifestId,
             opData: {
               title: null,
-              type: "WEEKLY",
               status: "DRAFT",
-              est_total: 0,
-              checked_count: 0,
             },
           }],
         }),
@@ -1470,15 +1467,12 @@ describe("POST /api/powersync/upload", () => {
 
       // Verify manifest exists in database
       const result = await db.query(
-        "SELECT id, title, type, status, est_total, checked_count FROM manifests WHERE id = $1",
+        "SELECT id, title, status FROM manifests WHERE id = $1",
         [manifestId]
       );
       expect(result.rows).toHaveLength(1);
       expect(result.rows[0].title).toBeNull();
-      expect(result.rows[0].type).toBe("WEEKLY");
       expect(result.rows[0].status).toBe("DRAFT");
-      expect(parseFloat(result.rows[0].est_total)).toBe(0);
-      expect(result.rows[0].checked_count).toBe(0);
 
       // Cleanup
       await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
@@ -1499,12 +1493,12 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
 
-      // Second PUT with same id, different status
+      // Second PUT with same id, different title
       const response = await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
         headers: {
@@ -1516,7 +1510,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: "Updated", type: "BULK", status: "ACTIVE" },
+            opData: { title: "Updated", status: "ACTIVE" },
           }],
         }),
       });
@@ -1527,11 +1521,10 @@ describe("POST /api/powersync/upload", () => {
 
       // Verify updated
       const result = await db.query(
-        "SELECT title, type, status FROM manifests WHERE id = $1",
+        "SELECT title, status FROM manifests WHERE id = $1",
         [manifestId]
       );
       expect(result.rows[0].title).toBe("Updated");
-      expect(result.rows[0].type).toBe("BULK");
       expect(result.rows[0].status).toBe("ACTIVE");
 
       // Cleanup
@@ -1553,7 +1546,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
@@ -1581,63 +1574,11 @@ describe("POST /api/powersync/upload", () => {
 
       // Verify only status changed
       const result = await db.query(
-        "SELECT title, type, status FROM manifests WHERE id = $1",
+        "SELECT title, status FROM manifests WHERE id = $1",
         [manifestId]
       );
       expect(result.rows[0].status).toBe("ACTIVE");
       expect(result.rows[0].title).toBeNull();
-
-      // Cleanup
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
-    });
-
-    it("PATCH manifests rejects invalid type value", async () => {
-      const manifestId = crypto.randomUUID();
-
-      // Create manifest first
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
-      // PATCH with invalid type
-      const response = await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PATCH",
-            table: "manifests",
-            id: manifestId,
-            opData: { type: "INVALID_TYPE" },
-          }],
-        }),
-      });
-
-      const body = await response.json();
-      expect(response.status).toBe(400);
-      expect(body.error).toBe("type");
-
-      // Verify type was not changed
-      const result = await db.query(
-        "SELECT type FROM manifests WHERE id = $1",
-        [manifestId]
-      );
-      expect(result.rows[0].type).toBe("WEEKLY");
 
       // Cleanup
       await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
@@ -1658,7 +1599,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
@@ -1703,7 +1644,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
@@ -1750,7 +1691,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
@@ -1795,7 +1736,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "ACTIVE" },
+            opData: { title: null, status: "ACTIVE" },
           }],
         }),
       });
@@ -1840,7 +1781,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DONE" },
+            opData: { title: null, status: "DONE" },
           }],
         }),
       });
@@ -1885,7 +1826,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "ACTIVE" },
+            opData: { title: null, status: "ACTIVE" },
           }],
         }),
       });
@@ -1929,7 +1870,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DONE" },
+            opData: { title: null, status: "DONE" },
           }],
         }),
       });
@@ -1971,7 +1912,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "ARCHIVED" },
+            opData: { title: null, status: "ARCHIVED" },
           }],
         }),
       });
@@ -2013,7 +1954,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
@@ -2055,7 +1996,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifests",
             id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            opData: { title: null, status: "DRAFT" },
           }],
         }),
       });
@@ -2084,30 +2025,9 @@ describe("POST /api/powersync/upload", () => {
     });
   });
 
-  describe("Manifest item operations", () => {
-    it("PUT manifest_items inserts a new manifest item", async () => {
-      const manifestId = crypto.randomUUID();
+  describe("Manifest item (catalog) operations", () => {
+    it("PUT manifest_items creates a new catalog item", async () => {
       const manifestItemId = crypto.randomUUID();
-      const itemId = crypto.randomUUID();
-
-      // Create manifest and item (FK requirements)
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
-      await db.query("INSERT INTO items (id, name) VALUES ($1, $2)", [itemId, "Test Item"]);
 
       const response = await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
@@ -2121,12 +2041,8 @@ describe("POST /api/powersync/upload", () => {
             table: "manifest_items",
             id: manifestItemId,
             opData: {
-              manifest_id: manifestId,
-              item_id: itemId,
-              item_name: "Bananas",
-              checked: false,
-              prev_price: 5.99,
-              is_unknown: false,
+              name: "Bananas",
+              category: "FRUIT",
             },
           }],
         }),
@@ -2138,23 +2054,18 @@ describe("POST /api/powersync/upload", () => {
 
       // Verify in database
       const result = await db.query(
-        "SELECT manifest_id, item_id, item_name, prev_price, is_unknown FROM manifest_items WHERE id = $1",
+        "SELECT id, name, category FROM manifest_items WHERE id = $1",
         [manifestItemId]
       );
       expect(result.rows).toHaveLength(1);
-      expect(result.rows[0].manifest_id).toBe(manifestId);
-      expect(result.rows[0].item_id).toBe(itemId);
-      expect(result.rows[0].item_name).toBe("Bananas");
-      expect(parseFloat(result.rows[0].prev_price)).toBe(5.99);
-      expect(result.rows[0].is_unknown).toBe(false);
+      expect(result.rows[0].name).toBe("Bananas");
+      expect(result.rows[0].category).toBe("FRUIT");
 
       // Cleanup
       await db.query("DELETE FROM manifest_items WHERE id = $1", [manifestItemId]);
-      await db.query("DELETE FROM items WHERE id = $1", [itemId]);
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
     });
 
-    it("PUT manifest_items rejects invalid manifest_id FK", async () => {
+    it("PUT manifest_items rejects empty name", async () => {
       const manifestItemId = crypto.randomUUID();
 
       const response = await fetch("http://localhost:3000/api/powersync/upload", {
@@ -2169,8 +2080,7 @@ describe("POST /api/powersync/upload", () => {
             table: "manifest_items",
             id: manifestItemId,
             opData: {
-              manifest_id: "00000000-0000-0000-0000-000000000000",
-              item_name: "Bananas",
+              name: "",
             },
           }],
         }),
@@ -2178,14 +2088,13 @@ describe("POST /api/powersync/upload", () => {
 
       const body = await response.json();
       expect(response.status).toBe(400);
-      expect(body.error).toBe("manifest_id");
+      expect(body.error).toBe("name");
     });
 
-    it("PUT manifest_items rejects invalid item_id FK when provided", async () => {
-      const manifestId = crypto.randomUUID();
+    it("PUT manifest_items upserts existing catalog item", async () => {
       const manifestItemId = crypto.randomUUID();
 
-      // Create manifest
+      // First PUT
       await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
         headers: {
@@ -2195,13 +2104,14 @@ describe("POST /api/powersync/upload", () => {
         body: JSON.stringify({
           operations: [{
             op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
+            table: "manifest_items",
+            id: manifestItemId,
+            opData: { name: "Bananas", category: "FRUIT" },
           }],
         }),
       });
 
+      // Second PUT with same id, different category
       const response = await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
         headers: {
@@ -2213,105 +2123,31 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifest_items",
             id: manifestItemId,
-            opData: {
-              manifest_id: manifestId,
-              item_id: "00000000-0000-0000-0000-000000000000",
-              item_name: "Bad Item",
-            },
+            opData: { name: "Bananas", category: "ORGANIC" },
           }],
         }),
       });
 
       const body = await response.json();
-      expect(response.status).toBe(400);
-      expect(body.error).toBe("item_id");
-
-      // Cleanup
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
-    });
-
-    it("PUT manifest_items allows null item_id for unknown items", async () => {
-      const manifestId = crypto.randomUUID();
-      const manifestItemId = crypto.randomUUID();
-
-      // Create manifest
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
-      const response = await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifest_items",
-            id: manifestItemId,
-            opData: {
-              manifest_id: manifestId,
-              item_id: null,
-              item_name: "Some weird fruit",
-              is_unknown: true,
-              prev_price: null,
-            },
-          }],
-        }),
-      });
-
       expect(response.status).toBe(200);
-      const body = await response.json();
       expect(body.success).toBe(true);
 
-      // Verify in database
+      // Verify updated
       const result = await db.query(
-        "SELECT item_id, is_unknown FROM manifest_items WHERE id = $1",
+        "SELECT name, category FROM manifest_items WHERE id = $1",
         [manifestItemId]
       );
-      expect(result.rows).toHaveLength(1);
-      expect(result.rows[0].item_id).toBeNull();
-      expect(result.rows[0].is_unknown).toBe(true);
+      expect(result.rows[0].name).toBe("Bananas");
+      expect(result.rows[0].category).toBe("ORGANIC");
 
       // Cleanup
       await db.query("DELETE FROM manifest_items WHERE id = $1", [manifestItemId]);
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
     });
 
-    it("PATCH manifest_items updates checked field", async () => {
-      const manifestId = crypto.randomUUID();
+    it("PATCH manifest_items updates category field", async () => {
       const manifestItemId = crypto.randomUUID();
 
-      // Create manifest and manifest_item
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
+      // Create catalog item
       await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
         headers: {
@@ -2323,16 +2159,12 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifest_items",
             id: manifestItemId,
-            opData: {
-              manifest_id: manifestId,
-              item_name: "Bananas",
-              checked: false,
-            },
+            opData: { name: "Bananas", category: "FRUIT" },
           }],
         }),
       });
 
-      // PATCH to toggle checked
+      // PATCH to update category
       const response = await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
         headers: {
@@ -2344,7 +2176,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PATCH",
             table: "manifest_items",
             id: manifestItemId,
-            opData: { checked: true },
+            opData: { category: "ORGANIC" },
           }],
         }),
       });
@@ -2354,40 +2186,23 @@ describe("POST /api/powersync/upload", () => {
       expect(body.success).toBe(true);
       expect(body.processed).toBe(1);
 
-      // Verify checked was updated
+      // Verify category was updated, name unchanged
       const result = await db.query(
-        "SELECT checked FROM manifest_items WHERE id = $1",
+        "SELECT name, category FROM manifest_items WHERE id = $1",
         [manifestItemId]
       );
       expect(result.rows).toHaveLength(1);
-      expect(result.rows[0].checked).toBe(true);
+      expect(result.rows[0].name).toBe("Bananas");
+      expect(result.rows[0].category).toBe("ORGANIC");
 
       // Cleanup
       await db.query("DELETE FROM manifest_items WHERE id = $1", [manifestItemId]);
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
     });
 
-    it("DELETE manifest_items removes the item", async () => {
-      const manifestId = crypto.randomUUID();
+    it("DELETE manifest_items removes catalog item", async () => {
       const manifestItemId = crypto.randomUUID();
 
-      // Create manifest and manifest_item
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
+      // Create catalog item
       await fetch("http://localhost:3000/api/powersync/upload", {
         method: "POST",
         headers: {
@@ -2399,11 +2214,7 @@ describe("POST /api/powersync/upload", () => {
             op: "PUT",
             table: "manifest_items",
             id: manifestItemId,
-            opData: {
-              manifest_id: manifestId,
-              item_name: "To Delete",
-              checked: false,
-            },
+            opData: { name: "To Delete" },
           }],
         }),
       });
@@ -2435,171 +2246,6 @@ describe("POST /api/powersync/upload", () => {
         [manifestItemId]
       );
       expect(result.rows).toHaveLength(0);
-
-      // Cleanup
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
-    });
-
-    it("PUT manifest_items recalculates est_total on parent manifest", async () => {
-      const manifestId = crypto.randomUUID();
-      const itemId = crypto.randomUUID();
-      const manifestItemId = crypto.randomUUID();
-
-      // Create manifest and item
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
-      await db.query("INSERT INTO items (id, name) VALUES ($1, $2)", [itemId, "Test Item"]);
-
-      // PUT manifest_item with prev_price 5.99
-      const response = await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifest_items",
-            id: manifestItemId,
-            opData: {
-              manifest_id: manifestId,
-              item_id: itemId,
-              item_name: "Bananas",
-              prev_price: 5.99,
-            },
-          }],
-        }),
-      });
-
-      expect(response.status).toBe(200);
-
-      // Verify est_total was recalculated
-      const result = await db.query(
-        "SELECT est_total FROM manifests WHERE id = $1",
-        [manifestId]
-      );
-      expect(parseFloat(result.rows[0].est_total)).toBe(5.99);
-
-      // Cleanup
-      await db.query("DELETE FROM manifest_items WHERE id = $1", [manifestItemId]);
-      await db.query("DELETE FROM items WHERE id = $1", [itemId]);
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
-    });
-
-    it("DELETE manifest_items recalculates est_total on parent manifest", async () => {
-      const manifestId = crypto.randomUUID();
-      const itemId1 = crypto.randomUUID();
-      const itemId2 = crypto.randomUUID();
-      const manifestItemId1 = crypto.randomUUID();
-      const manifestItemId2 = crypto.randomUUID();
-
-      // Create manifest and items
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "PUT",
-            table: "manifests",
-            id: manifestId,
-            opData: { title: null, type: "WEEKLY", status: "DRAFT" },
-          }],
-        }),
-      });
-
-      await db.query("INSERT INTO items (id, name) VALUES ($1, $2)", [itemId1, "Item 1"]);
-      await db.query("INSERT INTO items (id, name) VALUES ($1, $2)", [itemId2, "Item 2"]);
-
-      // Add two items with prev_prices (5.99 + 3.50 = 9.49)
-      await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [
-            {
-              op: "PUT",
-              table: "manifest_items",
-              id: manifestItemId1,
-              opData: {
-                manifest_id: manifestId,
-                item_id: itemId1,
-                item_name: "Bananas",
-                prev_price: 5.99,
-              },
-            },
-            {
-              op: "PUT",
-              table: "manifest_items",
-              id: manifestItemId2,
-              opData: {
-                manifest_id: manifestId,
-                item_id: itemId2,
-                item_name: "Apples",
-                prev_price: 3.50,
-              },
-            },
-          ],
-        }),
-      });
-
-      // Verify total is 9.49
-      const beforeResult = await db.query(
-        "SELECT est_total FROM manifests WHERE id = $1",
-        [manifestId]
-      );
-      expect(parseFloat(beforeResult.rows[0].est_total)).toBe(9.49);
-
-      // DELETE one item (5.99), remaining should be 3.50
-      const response = await fetch("http://localhost:3000/api/powersync/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer changeme",
-        },
-        body: JSON.stringify({
-          operations: [{
-            op: "DELETE",
-            table: "manifest_items",
-            id: manifestItemId1,
-          }],
-        }),
-      });
-
-      expect(response.status).toBe(200);
-
-      // Verify est_total was recalculated to 3.50
-      const result = await db.query(
-        "SELECT est_total FROM manifests WHERE id = $1",
-        [manifestId]
-      );
-      expect(parseFloat(result.rows[0].est_total)).toBe(3.50);
-
-      // Cleanup
-      await db.query("DELETE FROM manifest_items WHERE id = $1", [manifestItemId2]);
-      await db.query("DELETE FROM items WHERE id = $1", [itemId1]);
-      await db.query("DELETE FROM items WHERE id = $1", [itemId2]);
-      await db.query("DELETE FROM manifests WHERE id = $1", [manifestId]);
     });
   });
 });

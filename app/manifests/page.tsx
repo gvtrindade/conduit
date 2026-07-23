@@ -184,43 +184,41 @@ export default function ManifestsPage() {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <span className="font-heading text-lg font-bold text-cream block leading-none">
-                          {mft.estTotal}
+                          {mft.items.length}
                         </span>
                         <span className="font-mono text-[8px] text-sand block mt-0.5">
-                          EST kCr
-                        </span>
-                        <span
-                          className={`font-mono text-[9px] block mt-1 ${mft.status === "done" ? "text-green" : "text-amber"}`}
-                        >
-                          {mft.confidence}
+                          ITEMS
                         </span>
                       </div>
                     </div>
 
                     {/* Progress */}
-                    {mft.checkedCount > 0 && (
-                      <div className="px-3.5 pl-4.5 mb-2">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-mono text-[8px] tracking-[0.08em] uppercase text-sand">
-                            ITEMS_CHECKED
-                          </span>
-                          <span className="font-heading text-[10px] font-bold text-cream">
-                            {mft.checkedCount}/{mft.items.length}
-                          </span>
+                    {mft.items.some(i => i.checked) && (() => {
+                      const checkedCount = mft.items.filter(i => i.checked).length;
+                      return (
+                        <div className="px-3.5 pl-4.5 mb-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-mono text-[8px] tracking-[0.08em] uppercase text-sand">
+                              ITEMS_CHECKED
+                            </span>
+                            <span className="font-heading text-[10px] font-bold text-cream">
+                              {checkedCount}/{mft.items.length}
+                            </span>
+                          </div>
+                          <ProgressBar
+                            value={checkedCount}
+                            max={mft.items.length}
+                            color={
+                              mft.status === "active"
+                                ? "var(--green)"
+                                : mft.status === "done"
+                                  ? "var(--sand)"
+                                  : "var(--blue)"
+                            }
+                          />
                         </div>
-                        <ProgressBar
-                          value={mft.checkedCount}
-                          max={mft.checkedCount}
-                          color={
-                            mft.status === "active"
-                              ? "var(--green)"
-                              : mft.status === "done"
-                                ? "var(--sand)"
-                                : "var(--blue)"
-                          }
-                        />
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 </Link>
               ))}

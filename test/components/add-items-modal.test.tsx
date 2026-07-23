@@ -8,36 +8,46 @@ const mockPowerSync = {
   execute: mockExecute,
 };
 
+let catalogData: any[] = [
+  { id: "cat-1", name: "BANANAS", category: "FRUIT", user_id: "user-1", created_at: "now", updated_at: "now" },
+  { id: "cat-2", name: "APPLES", category: "FRUIT", user_id: "user-1", created_at: "now", updated_at: "now" },
+];
+
 mock.module("@powersync/react", () => ({
   usePowerSync: () => mockPowerSync,
-  useQuery: () => ({
-    data: [
-      {
-        id: "item-1",
-        name: "BANANAS",
-        category_name: "FRUIT",
-        last_price: 5.99,
-      },
-      {
-        id: "item-2",
-        name: "APPLES",
-        category_name: "FRUIT",
-        last_price: 3.50,
-      },
-    ],
+  useQuery: (_q: unknown) => ({
+    // MERCHANT_CATEGORIES_QUERY contains "DISTINCT category";
+    // CATALOG_ITEMS_QUERY returns catalog rows. Distinguish by SQL shape.
+    data: typeof _q === "string" && /DISTINCT category/i.test(_q) ? categoryData : catalogData,
     isLoading: false,
   }),
 }));
 
 // Mock mutations
 const mockAddManifestItem = mock(() => Promise.resolve("new-id"));
+const mockCreateCatalogItem = mock(() => Promise.resolve("new-cat-id"));
+const mockUpdateCatalogItem = mock(() => Promise.resolve());
+const mockDeleteCatalogItem = mock(() => Promise.resolve());
 mock.module("@/lib/manifest-mutations", () => ({
   addManifestItem: mockAddManifestItem,
+  createCatalogItem: mockCreateCatalogItem,
+  updateCatalogItem: mockUpdateCatalogItem,
+  deleteCatalogItem: mockDeleteCatalogItem,
 }));
+
+// Categories available as registered aisles (distinct categories across merchants).
+let categoryData: { category: string }[] = [{ category: "FRUIT" }];
 
 describe("AddItemsModal", () => {
   beforeEach(() => {
     mockAddManifestItem.mockClear();
+    mockCreateCatalogItem.mockClear();
+    mockUpdateCatalogItem.mockClear();
+    mockDeleteCatalogItem.mockClear();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = "";
   });
 
   it("renders when show is true", () => {
@@ -45,6 +55,7 @@ describe("AddItemsModal", () => {
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={() => {}}
         onItemsAdded={() => {}}
       />
@@ -54,11 +65,12 @@ describe("AddItemsModal", () => {
     expect(screen.getByPlaceholderText("SEARCH_CATALOG...")).toBeInTheDocument();
   });
 
-  it("filters items based on search input", () => {
+  it("shows catalog items from manifest_items", () => {
     render(
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={() => {}}
         onItemsAdded={() => {}}
       />
@@ -66,6 +78,18 @@ describe("AddItemsModal", () => {
 
     expect(screen.getByText("BANANAS")).toBeInTheDocument();
     expect(screen.getByText("APPLES")).toBeInTheDocument();
+  });
+
+  it("filters items based on search input", () => {
+    render(
+      <AddItemsModal
+        show={true}
+        manifestId="m-1"
+        userId="user-1"
+        onClose={() => {}}
+        onItemsAdded={() => {}}
+      />
+    );
 
     const searchInput = screen.getByPlaceholderText("SEARCH_CATALOG...");
     fireEvent.change(searchInput, { target: { value: "BAN" } });
@@ -79,6 +103,7 @@ describe("AddItemsModal", () => {
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={() => {}}
         onItemsAdded={() => {}}
       />
@@ -96,6 +121,7 @@ describe("AddItemsModal", () => {
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={() => {}}
         onItemsAdded={() => {}}
       />
@@ -104,31 +130,35 @@ describe("AddItemsModal", () => {
     const bananas = screen.getByText("BANANAS");
     fireEvent.click(bananas);
 
-    expect(screen.getByText("1 ITEM SELECTED")).toBeInTheDocument();
-    
+    expect(screen.getByText((content, el) =>
+      !!el?.textContent?.match(/^\/\/ SELECTED \(1\) \/\/$/),
+    )).toBeInTheDocument();
+
     // Toggle off
     fireEvent.click(bananas);
-    expect(screen.queryByText("1 ITEM SELECTED")).not.toBeInTheDocument();
+    expect(screen.queryByText((content, el) =>
+      !!el?.textContent?.match(/^\/\/ SELECTED \(1\) \/\/$/),
+    )).not.toBeInTheDocument();
   });
 
-  it("enables ADD_SELECTED button when items are selected", () => {
+  it("shows ADD_TO_CATALOG button when search term not found", () => {
     render(
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={() => {}}
         onItemsAdded={() => {}}
       />
     );
 
-    const addButton = screen.getByRole("button", { name: /ADD_SELECTED/ });
-    expect(addButton).toBeDisabled();
+    const searchInput = screen.getByPlaceholderText("SEARCH_CATALOG...");
+    fireEvent.change(searchInput, { target: { value: "ORANGES" } });
 
-    fireEvent.click(screen.getByText("BANANAS"));
-    expect(addButton).not.toBeDisabled();
+    expect(screen.getByText(/ADD.*ORANGES.*TO_CATALOG/)).toBeInTheDocument();
   });
 
-  it("calls addManifestItem for each selected item and the custom item", async () => {
+  it("calls addManifestItem with correct params for selected items", async () => {
     const onItemsAdded = mock(() => {});
     const onClose = mock(() => {});
 
@@ -136,83 +166,120 @@ describe("AddItemsModal", () => {
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={onClose}
         onItemsAdded={onItemsAdded}
       />
     );
 
-    // Select two items
+    // Select an item
     fireEvent.click(screen.getByText("BANANAS"));
-    fireEvent.click(screen.getByText("APPLES"));
 
-    // Enter custom item
-    const customInput = screen.getByPlaceholderText("ENTER_CUSTOM_ITEM_NAME");
-    fireEvent.change(customInput, { target: { value: "ORANGES" } });
-
-    const addButton = screen.getByRole("button", { name: /ADD_SELECTED/ });
+    const addButton = screen.getByText(/ADD_SELECTED/);
     fireEvent.click(addButton);
 
-    // Wait for async operations
     await new Promise(r => setTimeout(r, 0));
 
-    expect(mockAddManifestItem).toHaveBeenCalledTimes(3);
+    expect(mockAddManifestItem).toHaveBeenCalledTimes(1);
+    expect(mockAddManifestItem).toHaveBeenCalledWith(mockPowerSync, "m-1", {
+      manifestItemId: "cat-1",
+      name: "BANANAS",
+      category: "FRUIT",
+      estimated_cost: "0",
+    });
     expect(onItemsAdded).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("clears search input after successful add", async () => {
+  it("exposes EDIT and DEL buttons on each catalog item", () => {
     render(
       <AddItemsModal
         show={true}
         manifestId="m-1"
+        userId="user-1"
         onClose={() => {}}
         onItemsAdded={() => {}}
-      />
+      />,  // eslint-disable-next-line
+    );
+
+    const editButtons = screen.getAllByText("EDIT");
+    const delButtons = screen.getAllByText("DEL");
+    // One per visible catalog item (BANANAS + APPLES)
+    expect(editButtons).toHaveLength(2);
+    expect(delButtons).toHaveLength(2);
+  });
+
+  it("EDIT on a catalog item opens an inline editor with the name and category picker", () => {
+    render(
+      <AddItemsModal
+        show={true}
+        manifestId="m-1"
+        userId="user-1"
+        onClose={() => {}}
+        onItemsAdded={() => {}}
+      />,
+    );
+
+    // Click the first EDIT button (top of list)
+    const editButtons = screen.getAllByText("EDIT");
+    fireEvent.click(editButtons[0]);
+
+    // The inline editor appears with a header and the existing item name and category
+    expect(screen.getByText("// EDIT_CATALOG_ITEM //")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("ITEM_NAME")).toBeInTheDocument();
+  });
+
+  it("DELETE on a catalog item calls deleteCatalogItem after confirm", async () => {
+    // Auto-confirm window.confirm
+    const confirmSpy = mock(() => true);
+    const w = window as unknown as { confirm: typeof confirmSpy };
+    const originalConfirm = w.confirm;
+    w.confirm = confirmSpy;
+
+    render(
+      <AddItemsModal
+        show={true}
+        manifestId="m-1"
+        userId="user-1"
+        onClose={() => {}}
+        onItemsAdded={() => {}}
+      />,
+    );
+
+    const delButtons = screen.getAllByText("DEL");
+    fireEvent.click(delButtons[0]);
+
+    expect(confirmSpy).toHaveBeenCalled();
+
+    // Microtask flush
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockDeleteCatalogItem).toHaveBeenCalledTimes(1);
+    expect(mockDeleteCatalogItem.mock.calls[0]).toContain("cat-1");
+    expect(mockDeleteCatalogItem.mock.calls[0]).toContain("user-1");
+
+    w.confirm = originalConfirm;
+  });
+
+  it("the new-item category field is constrained to registered aisles", () => {
+    render(
+      <AddItemsModal
+        show={true}
+        manifestId="m-1"
+        userId="user-1"
+        onClose={() => {}}
+        onItemsAdded={() => {}}
+      />,
     );
 
     const searchInput = screen.getByPlaceholderText("SEARCH_CATALOG...");
-    fireEvent.change(searchInput, { target: { value: "BAN" } });
-    expect(searchInput).toHaveValue("BAN");
+    fireEvent.change(searchInput, { target: { value: "CHOCOLATE" } });
 
-    fireEvent.click(screen.getByText("BANANAS"));
-    const addButton = screen.getByRole("button", { name: /ADD_SELECTED/ });
-    fireEvent.click(addButton);
+    // Propose a new item (no existing match)
+    fireEvent.click(screen.getByText(/ADD.*CHOCOLATE.*TO_CATALOG/));
 
-    await new Promise(r => setTimeout(r, 0));
-
-    expect(searchInput).toHaveValue("");
-  });
-
-  it("filters out existing items from the list", () => {
-    render(
-      <AddItemsModal
-        show={true}
-        manifestId="m-1"
-        existingItemIds={new Set(["item-1"])}
-        onClose={() => {}}
-        onItemsAdded={() => {}}
-      />
-    );
-
-    expect(screen.queryByText("BANANAS")).not.toBeInTheDocument();
-    expect(screen.getByText("APPLES")).toBeInTheDocument();
-  });
-
-  it("filters out existing items from search results", () => {
-    render(
-      <AddItemsModal
-        show={true}
-        manifestId="m-1"
-        existingItemIds={new Set(["item-1"])}
-        onClose={() => {}}
-        onItemsAdded={() => {}}
-      />
-    );
-
-    const searchInput = screen.getByPlaceholderText("SEARCH_CATALOG...");
-    fireEvent.change(searchInput, { target: { value: "FRUIT" } });
-
-    expect(screen.queryByText("BANANAS")).not.toBeInTheDocument();
-    expect(screen.getByText("APPLES")).toBeInTheDocument();
+    // The new-item form appears with a constrained category picker.
+    expect(screen.getByText("// NEW_CATALOG_ITEM //")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("SELECT_CATEGORY (OPTIONAL)")).toBeInTheDocument();
   });
 });

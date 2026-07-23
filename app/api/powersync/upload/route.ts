@@ -1,10 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import {
-  ManifestStatus,
-  ManifestType,
-  ReceiptStatus,
-} from "@/prisma/generated/client";
+import { ManifestStatus, ReceiptStatus } from "@/prisma/generated/client";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -13,15 +9,7 @@ function isValidName(name: unknown): name is string {
   return typeof name === "string" && name.trim().length > 0;
 }
 
-const VALID_MANIFEST_TYPES = Object.values(ManifestType);
 const VALID_MANIFEST_STATUSES = Object.values(ManifestStatus);
-
-function isValidManifestType(type: unknown): type is string {
-  return (
-    typeof type === "string" &&
-    (VALID_MANIFEST_TYPES as readonly string[]).includes(type)
-  );
-}
 
 function isValidManifestStatus(status: unknown): status is string {
   return (
@@ -48,6 +36,8 @@ const FK_CHECKERS = {
     prisma.manifest.findUnique({ where: { id }, select: { id: true } }),
   items: (id: string) =>
     prisma.item.findUnique({ where: { id }, select: { id: true } }),
+  manifest_items: (id: string) =>
+    prisma.manifestItem.findUnique({ where: { id }, select: { id: true } }),
 } as const;
 
 async function isValidForeignKey(
@@ -59,16 +49,18 @@ async function isValidForeignKey(
   return row !== null;
 }
 
-// Recompute manifests.est_total from the sum of manifest_items.prev_price.
-async function recalculateEstTotal(manifestId: string): Promise<void> {
-  const agg = await prisma.manifestItem.aggregate({
-    where: { manifest_id: manifestId },
-    _sum: { prev_price: true },
-  });
-  await prisma.manifest.updateMany({
-    where: { id: manifestId },
-    data: { est_total: agg._sum.prev_price ?? 0 },
-  });
+// Parse items JSON string to JSONB, or return null
+function normalizeItemsJson(v: unknown): any {
+  if (v == null) return null;
+  if (typeof v === "string") {
+    try {
+      return JSON.parse(v);
+    } catch {
+      return null;
+    }
+  }
+  if (Array.isArray(v)) return v;
+  return null;
 }
 
 // The "user" table uses camelCase columns (better-auth) but the PowerSync
@@ -664,16 +656,17 @@ export async function POST(request: NextRequest) {
         createdAt = new Date().toISOString();
       }
 
+      // Parse items JSON string to JSONB
+      const itemsJson = normalizeItemsJson(opData?.items);
+
       await prisma.manifest.upsert({
         where: { id },
         create: {
           id,
           title: opData?.title ?? null,
-          type: opData?.type ?? null,
           status: opData?.status ?? ManifestStatus.DRAFT,
-          est_total: opData?.est_total ?? null,
-          confidence: opData?.confidence ?? null,
-          checked_count: opData?.checked_count ?? null,
+          merchant_name: opData?.merchant_name ?? null,
+          items: itemsJson ?? [],
           user_id: userId as string,
           created_by: opData?.created_by ?? null,
           created_at: createdAt,
@@ -681,11 +674,9 @@ export async function POST(request: NextRequest) {
         },
         update: {
           title: opData?.title ?? null,
-          type: opData?.type ?? null,
           status: opData?.status ?? ManifestStatus.DRAFT,
-          est_total: opData?.est_total ?? null,
-          confidence: opData?.confidence ?? null,
-          checked_count: opData?.checked_count ?? null,
+          merchant_name: opData?.merchant_name ?? null,
+          items: itemsJson ?? [],
           user_id: userId as string,
           updated_at: createdAt,
         },
@@ -699,14 +690,6 @@ export async function POST(request: NextRequest) {
 
       if (!id) {
         continue;
-      }
-
-      // Guard: Validate type is a valid manifest type if provided
-      if (opData.type !== undefined && !isValidManifestType(opData.type)) {
-        return NextResponse.json(
-          { error: "type", message: `type must be one of: ${VALID_MANIFEST_TYPES.join(", ")}` },
-          { status: 400 },
-        );
       }
 
       // Guard: Validate title is string or null if provided
@@ -750,12 +733,18 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const fields = Object.keys(opData);
+      // Parse items JSON string to JSONB if provided
+      const updateData: any = { ...opData };
+      if (opData.items !== undefined) {
+        updateData.items = normalizeItemsJson(opData.items) ?? [];
+      }
+
+      const fields = Object.keys(updateData);
       if (fields.length === 0) {
         continue;
       }
 
-      await prisma.manifest.updateMany({ where: { id }, data: opData });
+      await prisma.manifest.updateMany({ where: { id }, data: updateData });
 
       processed++;
     }
@@ -772,29 +761,15 @@ export async function POST(request: NextRequest) {
       processed++;
     }
 
+    // Catalog items (manifest_items table) - reshaped to catalog
     if (operation.op === "PUT" && operation.table === "manifest_items") {
       const { id, opData } = operation;
 
-      // Guard: Validate manifest_id FK
-      const manifestId = opData?.manifest_id;
-      if (!manifestId) {
+      // Guard: Validate name is non-empty string
+      const name = opData?.name;
+      if (!isValidName(name)) {
         return NextResponse.json(
-          { error: "manifest_id", message: "manifest_id is required" },
-          { status: 400 },
-        );
-      }
-      if (!(await isValidForeignKey("manifests", manifestId))) {
-        return NextResponse.json(
-          { error: "manifest_id", message: "manifest_id does not exist" },
-          { status: 400 },
-        );
-      }
-
-      // Guard: Validate item_id FK if provided
-      const itemId = opData?.item_id;
-      if (itemId && !(await isValidForeignKey("items", itemId))) {
-        return NextResponse.json(
-          { error: "item_id", message: "item_id does not exist" },
+          { error: "name", message: "name must be a non-empty string" },
           { status: 400 },
         );
       }
@@ -803,26 +778,19 @@ export async function POST(request: NextRequest) {
         where: { id },
         create: {
           id,
-          manifest_id: manifestId,
-          item_id: itemId ?? null,
-          item_name: opData?.item_name ?? null,
-          checked: opData?.checked ?? false,
-          prev_price: opData?.prev_price ?? null,
-          location: opData?.location ?? null,
-          is_unknown: opData?.is_unknown ?? false,
+          name,
+          category: opData?.category ?? null,
+          user_id: userId as string,
+          created_at: opData?.created_at ?? new Date().toISOString(),
+          updated_at: opData?.updated_at ?? new Date().toISOString(),
         },
         update: {
-          manifest_id: manifestId,
-          item_id: itemId ?? null,
-          item_name: opData?.item_name ?? null,
-          checked: opData?.checked ?? false,
-          prev_price: opData?.prev_price ?? null,
-          location: opData?.location ?? null,
-          is_unknown: opData?.is_unknown ?? false,
+          name,
+          category: opData?.category ?? null,
+          user_id: userId as string,
+          updated_at: new Date().toISOString(),
         },
       });
-
-      await recalculateEstTotal(manifestId);
 
       processed++;
     }
@@ -851,16 +819,176 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const item = await prisma.manifestItem.findUnique({
-        where: { id },
-        select: { manifest_id: true },
-      });
-
       await prisma.manifestItem.deleteMany({ where: { id } });
 
-      if (item?.manifest_id) {
-        await recalculateEstTotal(item.manifest_id);
+      processed++;
+    }
+
+    // Merchant aisles
+    if (operation.op === "PUT" && operation.table === "merchant_aisles") {
+      const { id, opData } = operation;
+
+      // Guard: Validate merchant_id FK
+      const merchantId = opData?.merchant_id;
+      if (!merchantId) {
+        return NextResponse.json(
+          { error: "merchant_id", message: "merchant_id is required" },
+          { status: 400 },
+        );
       }
+      if (!(await isValidForeignKey("merchants", merchantId))) {
+        return NextResponse.json(
+          { error: "merchant_id", message: "merchant_id does not exist" },
+          { status: 400 },
+        );
+      }
+
+      await prisma.merchantAisle.upsert({
+        where: { id },
+        create: {
+          id,
+          merchant_id: merchantId,
+          category: opData?.category as string,
+          sort_order: (opData?.order as number) ?? 0,
+          user_id: userId as string,
+          created_at: opData?.created_at ?? new Date().toISOString(),
+        },
+        update: {
+          merchant_id: merchantId,
+          category: opData?.category as string,
+          sort_order: (opData?.order as number) ?? 0,
+          user_id: userId as string,
+        },
+      });
+
+      processed++;
+    }
+
+    if (operation.op === "PATCH" && operation.table === "merchant_aisles") {
+      const { id, opData } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      // Remap DB column name 'order' to Prisma field 'sort_order'
+      const data: any = { ...opData };
+      if (data.order !== undefined) {
+        data.sort_order = data.order;
+        delete data.order;
+      }
+
+      const fields = Object.keys(data);
+      if (fields.length === 0) {
+        continue;
+      }
+
+      await prisma.merchantAisle.updateMany({ where: { id }, data });
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "merchant_aisles") {
+      const { id } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      await prisma.merchantAisle.deleteMany({ where: { id } });
+
+      processed++;
+    }
+
+    // Merchant item rules
+    if (operation.op === "PUT" && operation.table === "merchant_item_rules") {
+      const { id, opData } = operation;
+
+      // Guard: Validate merchant_id FK
+      const merchantId = opData?.merchant_id;
+      if (!merchantId) {
+        return NextResponse.json(
+          { error: "merchant_id", message: "merchant_id is required" },
+          { status: 400 },
+        );
+      }
+      if (!(await isValidForeignKey("merchants", merchantId))) {
+        return NextResponse.json(
+          { error: "merchant_id", message: "merchant_id does not exist" },
+          { status: 400 },
+        );
+      }
+
+      // Guard: Validate manifest_item_id FK
+      const manifestItemId = opData?.manifest_item_id;
+      if (!manifestItemId) {
+        return NextResponse.json(
+          { error: "manifest_item_id", message: "manifest_item_id is required" },
+          { status: 400 },
+        );
+      }
+      if (!(await isValidForeignKey("manifest_items", manifestItemId))) {
+        return NextResponse.json(
+          { error: "manifest_item_id", message: "manifest_item_id does not exist" },
+          { status: 400 },
+        );
+      }
+
+      await prisma.merchantItemRule.upsert({
+        where: { id },
+        create: {
+          id,
+          merchant_id: merchantId,
+          manifest_item_id: manifestItemId,
+          category: opData?.category as string,
+          sort_order: (opData?.order as number) ?? 0,
+          user_id: userId as string,
+          created_at: opData?.created_at ?? new Date().toISOString(),
+        },
+        update: {
+          merchant_id: merchantId,
+          manifest_item_id: manifestItemId,
+          category: opData?.category as string,
+          sort_order: (opData?.order as number) ?? 0,
+          user_id: userId as string,
+        },
+      });
+
+      processed++;
+    }
+
+    if (operation.op === "PATCH" && operation.table === "merchant_item_rules") {
+      const { id, opData } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      // Remap DB column name 'order' to Prisma field 'sort_order'
+      const data: any = { ...opData };
+      if (data.order !== undefined) {
+        data.sort_order = data.order;
+        delete data.order;
+      }
+
+      const fields = Object.keys(data);
+      if (fields.length === 0) {
+        continue;
+      }
+
+      await prisma.merchantItemRule.updateMany({ where: { id }, data });
+
+      processed++;
+    }
+
+    if (operation.op === "DELETE" && operation.table === "merchant_item_rules") {
+      const { id } = operation;
+
+      if (!id) {
+        continue;
+      }
+
+      await prisma.merchantItemRule.deleteMany({ where: { id } });
 
       processed++;
     }

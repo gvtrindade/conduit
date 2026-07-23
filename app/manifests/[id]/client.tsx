@@ -17,17 +17,20 @@ import {
   removeManifestItem,
   toggleManifestItemChecked,
   updateManifest,
+  resolveMerchantRules,
 } from "@/lib/manifest-mutations";
 import {
   MANIFEST_CREW_QUERY,
   MANIFEST_DETAIL_QUERY,
-  MANIFEST_ITEMS_QUERY,
+  MERCHANTS_LIST_QUERY,
+  MERCHANT_AISLES_QUERY,
   mapDbCrewToCrewMember,
   mapDbManifestDetailToManifest,
-  mapDbManifestItemToManifestItem,
+  mapDbMerchantAisle,
   type DbManifestCrewRow,
   type DbManifestDetailRow,
-  type DbManifestItemRow,
+  type DbMerchantListRow,
+  type DbMerchantAisleRow,
 } from "@/lib/manifest-queries";
 import {
   MANIFEST_AVAILABLE_CREW_QUERY,
@@ -37,18 +40,10 @@ import {
   addCrewToManifest,
   removeCrewFromManifest,
 } from "@/lib/crew-mutations";
+import type { ManifestItem } from "@/lib/types";
 import { usePowerSync, useQuery } from "@powersync/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-
-const MANIFEST_TYPES = [
-  "WEEKLY",
-  "BULK",
-  "MONTHLY",
-  "QUICK",
-  "TARGETED",
-  "CUSTOM",
-] as const;
 
 export default function ManifestDetailClient({
   id,
@@ -64,38 +59,131 @@ export default function ManifestDetailClient({
     MANIFEST_DETAIL_QUERY,
     [id],
   );
-  const { data: rawItems, isLoading: itemsLoading } = useQuery(
-    MANIFEST_ITEMS_QUERY,
-    [id],
-  );
   const { data: rawCrew, isLoading: crewLoading } = useQuery(
     MANIFEST_CREW_QUERY,
     [id, id, id],
+  );
+
+  // ── Merchants (for selection inside the activation confirm modal) ──
+  const { data: rawMerchants } = useQuery(MERCHANTS_LIST_QUERY, [userId ?? ""]);
+  const merchants = useMemo(
+    () => (rawMerchants as unknown as DbMerchantListRow[]) || [],
+    [rawMerchants],
   );
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showIncludeOperator, setShowIncludeOperator] = useState(false);
   const [showStatusConfirm, setShowStatusConfirm] = useState(false);
+  // Merchant chosen inside the activation confirm modal.
+  const [statusConfirmMerchantId, setStatusConfirmMerchantId] = useState<string | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const { data: rawAvailableCrew } = useQuery(
     MANIFEST_AVAILABLE_CREW_QUERY,
     [userId ?? "", userId ?? "", userId ?? "", id],
   );
 
-  const isLoading = manifestLoading || itemsLoading || crewLoading;
+  const isLoading = manifestLoading || crewLoading;
 
   const mft = useMemo(() => {
     const rows = rawManifest as unknown as DbManifestDetailRow[];
     if (!rows || rows.length === 0) return null;
-    const items = ((rawItems as unknown as DbManifestItemRow[]) || []).map(
-      mapDbManifestItemToManifestItem,
-    );
     const crew = ((rawCrew as unknown as DbManifestCrewRow[]) || []).map(
       mapDbCrewToCrewMember,
     );
-    return mapDbManifestDetailToManifest(rows[0], items, crew);
-  }, [rawManifest, rawItems, rawCrew]);
+    return mapDbManifestDetailToManifest(rows[0], crew);
+  }, [rawManifest, rawCrew]);
+
+  // Aisles for the current merchant (if any) — must come AFTER mft
+  const resolvedMerchantId = useMemo(() => {
+    if (!mft?.merchantName) return null;
+    const found = merchants.find(
+      (m) => m.name.trim().toLowerCase() === mft.merchantName!.trim().toLowerCase(),
+    );
+    return found?.id ?? null;
+  }, [mft?.merchantName, merchants]);
+
+  const { data: rawMerchantAisles } = useQuery(
+    MERCHANT_AISLES_QUERY,
+    [resolvedMerchantId ?? ""],
+  );
+  const merchantAisles = useMemo(
+    () =>
+      ((rawMerchantAisles as unknown as DbMerchantAisleRow[]) || []).map(
+        mapDbMerchantAisle,
+      ),
+    [rawMerchantAisles],
+  );
+
+  // ── Grouped items ──
+  const groupedItems = useMemo(() => {
+    if (!mft || mft.items.length === 0) return [];
+
+    const items = mft.items;
+
+    // Build aisle lookup: category -> order
+    const aisleOrder = new Map<string, number>();
+    merchantAisles.forEach((a) => {
+      const normalized = a.category.trim().toLowerCase();
+      if (!aisleOrder.has(normalized) || a.order < aisleOrder.get(normalized)!) {
+        aisleOrder.set(normalized, a.order);
+      }
+    });
+
+    // Sort items: aisle order -> alphabetical -> uncategorized/unmatched at bottom
+    const sorted = [...items].sort((a, b) => {
+      const aCat = (a.category || "").trim().toLowerCase();
+      const bCat = (b.category || "").trim().toLowerCase();
+
+      const aOrder = aCat ? aisleOrder.get(aCat) : undefined;
+      const bOrder = bCat ? aisleOrder.get(bCat) : undefined;
+
+      // Both have matching aisle
+      if (aOrder !== undefined && bOrder !== undefined) {
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        // Same aisle: alphabetical
+        return a.name.localeCompare(b.name);
+      }
+
+      // One has matching aisle, one doesn't
+      if (aOrder !== undefined) return -1;
+      if (bOrder !== undefined) return 1;
+
+      // Neither has matching aisle: alphabetical
+      return a.name.localeCompare(b.name);
+    });
+
+    // Group by aisle for visual display
+    const groups: { header: string | null; items: typeof items; aisleOrder: number }[] = [];
+    const aisleMap = new Map<string, typeof items>();
+    const ungrouped: typeof items = [];
+
+    for (const item of sorted) {
+      const cat = (item.category || "").trim().toLowerCase();
+      if (cat && aisleOrder.has(cat)) {
+        if (!aisleMap.has(cat)) aisleMap.set(cat, []);
+        aisleMap.get(cat)!.push(item);
+      } else {
+        ungrouped.push(item);
+      }
+    }
+
+    // Sort groups by aisle order
+    const sortedGroups: { header: string | null; items: ManifestItem[]; aisleOrder: number }[] = Array.from(aisleMap.entries())
+      .map(([cat, groupItems]) => ({
+        header: cat,
+        items: groupItems,
+        aisleOrder: aisleOrder.get(cat) ?? 999,
+      }))
+      .sort((a, b) => a.aisleOrder - b.aisleOrder);
+
+    if (ungrouped.length > 0) {
+      sortedGroups.push({ header: null, items: ungrouped, aisleOrder: 999 });
+    }
+
+    return sortedGroups;
+  }, [mft, merchantAisles]);
 
   const isCreator = !!userId && !!mft?.createdBy && userId === mft.createdBy;
   const canEditCrew = isCreator && (mft?.status === "draft" || mft?.status === "active");
@@ -113,8 +201,16 @@ export default function ManifestDetailClient({
   const confidenceDisplay = useMemo(() => {
     if (!mft) return "";
     if (mft.items.length === 0) return "0%";
-    return mft.confidence || `${checkedPercentage}%`;
+    return `${checkedPercentage}%`;
   }, [mft, checkedPercentage]);
+
+  const estTotal = useMemo(() => {
+    if (!mft) return 0;
+    return mft.items.reduce((sum, item) => {
+      const cost = parseFloat(item.estimated_cost || "0");
+      return sum + (isNaN(cost) ? 0 : cost);
+    }, 0);
+  }, [mft]);
 
   const [showAddItems, setShowAddItems] = useState(false);
 
@@ -157,24 +253,43 @@ export default function ManifestDetailClient({
 
   const handleStatusTransitionClick = useCallback(() => {
     if (!mft) return;
+    // Pre-select the currently-resolved merchant (if any) for activation.
+    setStatusConfirmMerchantId(resolvedMerchantId);
     setShowStatusConfirm(true);
-  }, [mft]);
+  }, [mft, resolvedMerchantId]);
 
   const handleStatusTransition = useCallback(async () => {
     if (!mft) return;
-    setShowStatusConfirm(false);
-    switch (mft.status) {
-      case "draft":
-        await activateManifest(powerSync, mft.id);
-        break;
-      case "active":
-        await completeManifest(powerSync, mft.id);
-        break;
-      case "done":
-        await archiveManifest(powerSync, mft.id);
-        break;
+    // Activation requires a merchant to be selected in the confirm modal.
+    if (mft.status === "draft" && !statusConfirmMerchantId) return;
+    setIsTransitioning(true);
+    try {
+      switch (mft.status) {
+        case "draft": {
+          const selected = merchants.find((m) => m.id === statusConfirmMerchantId);
+          if (!selected) break;
+          // Bind the merchant, re-resolve item rules by its aisles, then activate.
+          await updateManifest(powerSync, mft.id, {
+            merchant_name: selected.name,
+          });
+          await resolveMerchantRules(powerSync, mft.id, selected.id);
+          await activateManifest(powerSync, mft.id);
+          break;
+        }
+        case "active":
+          await completeManifest(powerSync, mft.id);
+          break;
+        case "done":
+          await archiveManifest(powerSync, mft.id);
+          break;
+      }
+      setShowStatusConfirm(false);
+    } catch {
+      showToast("⊗", "STATUS_CHANGE_FAILED");
+    } finally {
+      setIsTransitioning(false);
     }
-  }, [mft, powerSync]);
+  }, [mft, powerSync, statusConfirmMerchantId, merchants, showToast]);
 
   const [titleValue, setTitleValue] = useState("");
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -197,29 +312,20 @@ export default function ManifestDetailClient({
     );
   }, [mft, editable, titleValue, powerSync]);
 
-  const handleTypeChange = useCallback(
-    async (type: string) => {
-      if (!mft || !editable) return;
-      if (type === mft.type) return;
-      await updateManifest(powerSync, mft.id, { type });
-    },
-    [mft, editable, powerSync],
-  );
-
   const handleRemoveItem = useCallback(
-    async (itemId: string) => {
+    async (itemIndex: number) => {
       if (!canRemoveItems || !mft) return;
-      await removeManifestItem(powerSync, mft.id, itemId);
+      await removeManifestItem(powerSync, mft.id, itemIndex);
     },
     [canRemoveItems, mft, powerSync],
   );
 
   const handleToggleChecked = useCallback(
-    async (itemId: string, checked: boolean) => {
+    async (itemIndex: number, checked: boolean) => {
       if (!canToggleChecked) return;
-      await toggleManifestItemChecked(powerSync, itemId, checked);
+      await toggleManifestItemChecked(powerSync, mft!.id, itemIndex, checked);
     },
-    [canToggleChecked, powerSync],
+    [canToggleChecked, mft, powerSync],
   );
 
   const handleDelete = useCallback(async () => {
@@ -309,9 +415,27 @@ export default function ManifestDetailClient({
               EST_TOTAL:
             </span>
             <span className="font-heading text-2xl font-bold text-cream">
-              {mft.estTotal.toFixed(2)}
+              {estTotal.toFixed(2)}
             </span>
             <span className="font-mono text-sm text-sand">kCr</span>
+          </div>
+
+          {/* Merchant — selected during activation, shown read-only otherwise */}
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="font-mono text-[9px] text-sand tracking-[0.1em] uppercase whitespace-nowrap">
+              MERCHANT:
+            </span>
+            {mft.merchantName ? (
+              <span className="font-mono text-[10px] font-bold text-amber uppercase tracking-[0.08em]">
+                {mft.merchantName}
+              </span>
+            ) : mft.status === "draft" ? (
+              <span className="font-mono text-[9px] text-sand">
+                — SELECT ON ACTIVATION —
+              </span>
+            ) : (
+              <span className="font-mono text-[9px] text-sand">—</span>
+            )}
           </div>
 
           {mft.status !== "draft" && (
@@ -363,58 +487,133 @@ export default function ManifestDetailClient({
         </div>
 
         <div className="px-5 flex flex-col gap-2">
-          {mft.items.map((item, i) => (
-            <div
-              key={item.id || i}
-              className={`bg-panel border border-border-custom rounded-lg px-3.5 py-3 flex items-center gap-3 ${item.checked ? "opacity-65" : ""} ${item.unknown ? "border-amber/30" : ""}`}
-            >
-              {mft.status !== "draft" && (
-                <>
-                  {canToggleChecked ? (
-                    <button
-                      onClick={() =>
-                        handleToggleChecked(item.id, !item.checked)
-                      }
-                      className={`w-[22px] h-[22px] flex-shrink-0 border-2 rounded-sm bg-hull flex items-center justify-center font-mono text-sm font-bold text-green cursor-pointer hover:border-green transition-colors ${item.checked ? "border-green" : item.unknown ? "border-amber" : "border-border-custom"}`}
-                    >
-                      {item.checked && "✕"}
-                    </button>
-                  ) : (
-                    <div
-                      className={`w-[22px] h-[22px] flex-shrink-0 border-2 rounded-sm bg-hull flex items-center justify-center font-mono text-sm font-bold text-green ${item.checked ? "border-green" : item.unknown ? "border-amber" : "border-border-custom"}`}
-                    >
-                      {item.checked && "✕"}
-                    </div>
-                  )}
-                </>
-              )}
-              <div className={`flex-1 ${mft.status === "draft" ? "" : ""}`}>
-                <div
-                  className={`text-[13px] font-semibold uppercase tracking-[0.04em] ${item.checked ? "text-sand" : "text-cream"}`}
-                >
-                  {item.name}
+          {mft.merchantName && merchantAisles.length > 0 ? (
+            // Grouped view when merchant with aisles is selected
+            groupedItems.map((group, gi) => (
+              <div key={gi}>
+                {group.header && (
+                  <div className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-amber bg-amber/5 border border-amber/20 rounded-t-lg px-3 py-1.5 mt-1 first:mt-0">
+                    // {group.header} //
+                  </div>
+                )}
+                {group.header === null && group.items.length > 0 && (
+                  <div className="font-mono text-[9px] font-bold tracking-[0.12em] uppercase text-sand bg-panel2/30 border border-border-custom rounded-t-lg px-3 py-1.5 mt-1 first:mt-0">
+                    // UNMATCHED //
+                  </div>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  {group.items.map((item, ii) => {
+                    // Find the global index for handlers
+                    const globalIdx = mft.items.indexOf(item);
+                    return (
+                      <div
+                        key={`${gi}-${ii}`}
+                        className={`bg-panel border border-border-custom rounded-lg px-3.5 py-3 flex items-center gap-3 ${item.checked ? "opacity-65" : ""}`}
+                      >
+                        {mft.status !== "draft" && (
+                          <>
+                            {canToggleChecked ? (
+                              <button
+                                onClick={() =>
+                                  handleToggleChecked(globalIdx, !item.checked)
+                                }
+                                className={`w-[22px] h-[22px] flex-shrink-0 border-2 rounded-sm bg-hull flex items-center justify-center font-mono text-sm font-bold text-green cursor-pointer hover:border-green transition-colors ${item.checked ? "border-green" : "border-border-custom"}`}
+                              >
+                                {item.checked && "✕"}
+                              </button>
+                            ) : (
+                              <div
+                                className={`w-[22px] h-[22px] flex-shrink-0 border-2 rounded-sm bg-hull flex items-center justify-center font-mono text-sm font-bold text-green ${item.checked ? "border-green" : "border-border-custom"}`}
+                              >
+                                {item.checked && "✕"}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        <div className="flex-1">
+                          <div
+                            className={`text-[13px] font-semibold uppercase tracking-[0.04em] ${item.checked ? "text-sand" : "text-cream"}`}
+                          >
+                            {item.name}
+                          </div>
+                          {item.category && (
+                            <div className="font-mono text-[9px] text-sand tracking-[0.08em] uppercase mt-0.5">
+                              {item.category}
+                            </div>
+                          )}
+                        </div>
+                        {canRemoveItems ? (
+                          <button
+                            onClick={() => handleRemoveItem(globalIdx)}
+                            className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
+                          >
+                            ✕
+                          </button>
+                        ) : (
+                          <div className="font-mono text-[9px] font-bold tracking-[0.08em] uppercase text-blue bg-blue/10 border border-blue/25 rounded-full px-2 py-0.5 whitespace-nowrap">
+                            {item.estimated_cost} kCr
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              {canRemoveItems ? (
-                <button
-                  onClick={() => handleRemoveItem(item.id)}
-                  className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
-                >
-                  ✕
-                </button>
-              ) : item.unknown ? (
-                <Badge variant="amber">NO_DATA</Badge>
-              ) : item.prevPrice !== null ? (
-                <div className="font-mono text-[9px] font-bold tracking-[0.08em] uppercase text-blue bg-blue/10 border border-blue/25 rounded-full px-2 py-0.5 whitespace-nowrap">
-                  PREV: {item.prevPrice.toFixed(2)} kCr
+            ))
+          ) : (
+            // Flat list when no merchant or no aisles
+            mft.items.map((item, i) => (
+              <div
+                key={i}
+                className={`bg-panel border border-border-custom rounded-lg px-3.5 py-3 flex items-center gap-3 ${item.checked ? "opacity-65" : ""}`}
+              >
+                {mft.status !== "draft" && (
+                  <>
+                    {canToggleChecked ? (
+                      <button
+                        onClick={() =>
+                          handleToggleChecked(i, !item.checked)
+                        }
+                        className={`w-[22px] h-[22px] flex-shrink-0 border-2 rounded-sm bg-hull flex items-center justify-center font-mono text-sm font-bold text-green cursor-pointer hover:border-green transition-colors ${item.checked ? "border-green" : "border-border-custom"}`}
+                      >
+                        {item.checked && "✕"}
+                      </button>
+                    ) : (
+                      <div
+                        className={`w-[22px] h-[22px] flex-shrink-0 border-2 rounded-sm bg-hull flex items-center justify-center font-mono text-sm font-bold text-green ${item.checked ? "border-green" : "border-border-custom"}`}
+                      >
+                        {item.checked && "✕"}
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="flex-1">
+                  <div
+                    className={`text-[13px] font-semibold uppercase tracking-[0.04em] ${item.checked ? "text-sand" : "text-cream"}`}
+                  >
+                    {item.name}
+                  </div>
+                  {item.category && (
+                    <div className="font-mono text-[9px] text-sand tracking-[0.08em] uppercase mt-0.5">
+                      {item.category}
+                    </div>
+                  )}
                 </div>
-              ) : item.location ? (
-                <div className="font-mono text-[9px] font-bold tracking-[0.08em] uppercase text-blue bg-blue/10 border border-blue/25 rounded-full px-2 py-0.5 whitespace-nowrap">
-                  LOC: {item.location}
-                </div>
-              ) : null}
-            </div>
-          ))}
+                {canRemoveItems ? (
+                  <button
+                    onClick={() => handleRemoveItem(i)}
+                    className="font-mono text-xs text-sand hover:text-red cursor-pointer transition-colors px-1"
+                  >
+                    ✕
+                  </button>
+                ) : (
+                  <div className="font-mono text-[9px] font-bold tracking-[0.08em] uppercase text-blue bg-blue/10 border border-blue/25 rounded-full px-2 py-0.5 whitespace-nowrap">
+                    {item.estimated_cost} kCr
+                  </div>
+                )}
+              </div>
+            ))
+          )}
         </div>
 
         <div className="mt-4 px-5 pt-4">
@@ -522,7 +721,7 @@ export default function ManifestDetailClient({
         <AddItemsModal
           show={showAddItems}
           manifestId={mft.id}
-          existingItemIds={new Set(mft.items.map((i) => i.itemId ?? i.id))}
+          userId={userId}
           onClose={() => setShowAddItems(false)}
           onItemsAdded={() => showToast("📦", "ITEMS_ADDED_TO_MANIFEST")}
         />
@@ -550,7 +749,7 @@ export default function ManifestDetailClient({
           }
         />
         <ModalBody>
-          <div className="text-center mb-6">
+          <div className="text-center mb-4">
             <div className="text-4xl mb-3">
               {mft.status === "draft" ? "▶" : mft.status === "active" ? "✓" : "📦"}
             </div>
@@ -558,21 +757,72 @@ export default function ManifestDetailClient({
               {transitionConfig?.label}
             </div>
             <div className="font-mono text-[10px] text-sand">
-              {mft.status === "draft" && "This will activate the manifest and begin tracking items."}
+              {mft.status === "draft" && "Select a merchant to bind its aisles and item rules, then activate."}
               {mft.status === "active" && "This will mark the manifest as complete. No more items can be checked."}
               {mft.status === "done" && "This will archive the manifest. It will be read-only."}
             </div>
           </div>
+
+          {/* Merchant selection — required for activation */}
+          {mft.status === "draft" && (
+            <div className="mb-4">
+              <div className="font-mono text-[9px] font-bold tracking-[0.1em] uppercase text-sand mb-2">
+                // SELECT_MERCHANT //
+              </div>
+              {merchants.length > 0 ? (
+                <div className="flex flex-col gap-2 max-h-52 overflow-y-auto scrollbar-none">
+                  {merchants.map((m) => {
+                    const selected = statusConfirmMerchantId === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setStatusConfirmMerchantId(m.id)}
+                        disabled={isTransitioning}
+                        className={`flex items-center gap-3 px-3.5 py-3 border rounded-lg bg-hull cursor-pointer hover:border-amber transition-all text-left disabled:opacity-50 ${
+                          selected ? "border-amber bg-amber/5" : "border-border-custom"
+                        }`}
+                      >
+                        <span className="text-lg">{m.emoji || "🏪"}</span>
+                        <span className="flex-1 font-mono text-[10px] font-bold tracking-[0.06em] uppercase text-cream">
+                          {m.name}
+                        </span>
+                        {selected && (
+                          <span className="font-mono text-[9px] text-amber">✓</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <div className="text-3xl opacity-30 mb-2">🏪</div>
+                  <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-sand mb-1">
+                    NO_MERCHANTS
+                  </div>
+                  <div className="font-mono text-[9px] text-panel2">
+                    Create a merchant first from your profile.
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-3">
             <button
               onClick={() => setShowStatusConfirm(false)}
-              className="flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border border-border-custom rounded-lg text-sand hover:text-cream hover:border-sand transition-all cursor-pointer"
+              disabled={isTransitioning}
+              className="flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border border-border-custom rounded-lg text-sand hover:text-cream hover:border-sand transition-all cursor-pointer disabled:opacity-50"
             >
               CANCEL
             </button>
             <button
               onClick={handleStatusTransition}
-              className={`flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border rounded-lg text-cream transition-all cursor-pointer ${
+              disabled={
+                isTransitioning ||
+                (mft.status === "draft" && !statusConfirmMerchantId)
+              }
+              className={`flex-1 font-mono text-[10px] font-bold tracking-[0.1em] uppercase py-3 border rounded-lg text-cream transition-all cursor-pointer disabled:opacity-50 ${
                 mft.status === "draft"
                   ? "bg-green border-green hover:bg-green/80"
                   : mft.status === "active"
@@ -580,7 +830,7 @@ export default function ManifestDetailClient({
                     : "bg-sand border-sand hover:bg-sand/80"
               }`}
             >
-              CONFIRM
+              {isTransitioning ? "..." : mft.status === "draft" ? "ACTIVATE" : "CONFIRM"}
             </button>
           </div>
         </ModalBody>
