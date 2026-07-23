@@ -17,7 +17,8 @@ fi
 
 cd /app
 
-# Apply pending migrations against the backend Postgres.
+# Apply pending migrations against the backend Postgres. Call the prisma CLI
+# entry directly (avoids relying on node_modules/.bin symlink presence).
 echo "» prisma migrate deploy"
 node ./node_modules/prisma/build/index.js migrate deploy
 

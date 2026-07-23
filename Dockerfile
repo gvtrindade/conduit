@@ -43,12 +43,10 @@ RUN chown bun:bun .next
 COPY --from=builder --chown=bun:bun /app/.next/standalone ./
 COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
 
-# Prisma CLI + engines are needed at runtime to apply migrations before
-# serving traffic. `prisma migrate deploy` loads prisma.config.ts + the schema
-# + the migration engine (a native binary under @prisma/engines).
-COPY --from=builder --chown=bun:bun /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=bun:bun /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=bun:bun /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+# Full node_modules over the standalone subset: the standalone tracer prunes
+# Prisma-CLI-only deps (effect, c12, @prisma/engines, etc.) that `prisma migrate
+# deploy` needs at container start. The builder's node_modules is a superset.
+COPY --from=builder --chown=bun:bun /app/node_modules ./node_modules
 
 # Prisma config + schema + migrations (needed by `prisma migrate deploy`).
 COPY --from=builder --chown=bun:bun /app/prisma.config.ts ./prisma.config.ts
