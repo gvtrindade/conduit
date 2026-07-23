@@ -48,6 +48,8 @@ export default function LoginPage() {
   const handleGoogleSignIn = () => {
     authClient.signIn.social({
       provider: "google",
+      callbackURL: "/",
+      newUserCallbackURL: "/set-callsign",
     });
   };
 

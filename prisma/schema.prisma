@@ -29,7 +29,6 @@ generator client {
 
 enum ReceiptStatus {
   PENDING
-  PROCESSING
   OK
   ERR
 
@@ -47,8 +46,6 @@ enum ManifestStatus {
 
 
 // ──────────────────────────── Better-auth tables ────────────────────────────
-// camelCase columns match better-auth's schema. `"user"` is a reserved word in
-// Postgres, hence the lowercase @@map.
 
 model User {
   id            String   @id
@@ -137,8 +134,6 @@ model Jwks {
 }
 
 // ──────────────────────────── Reference / app tables ────────────────────────────
-// snake_case columns (matching the SQL migrations). UUID PKs default to
-// gen_random_uuid() to match the existing migrations exactly.
 
 model Category {
   id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -147,7 +142,6 @@ model Category {
   description   String?
   is_controlled Boolean  @default(false)
   created_at    DateTime @default(now()) @db.Timestamptz
-  // Added in 005 (no FK declared in migrations)
   user_id       String
 
   items Item[]
@@ -160,7 +154,6 @@ model Tag {
   name          String
   is_controlled Boolean  @default(false)
   created_at    DateTime @default(now()) @db.Timestamptz
-  // Added in 005 (no FK declared in migrations)
   user_id       String
 
   items Item[]
@@ -173,9 +166,7 @@ model Merchant {
   name       String
   emoji      String?
   created_at DateTime @default(now()) @db.Timestamptz
-  // Added in 006
   cnpj       String?
-  // Added in 005 (no FK declared in migrations)
   user_id    String
 
   items        Item[]             @relation("item_freq_source")
@@ -204,9 +195,7 @@ model Item {
   freq_source_id     String?   @db.Uuid
   created_at         DateTime  @default(now()) @db.Timestamptz
   updated_at         DateTime  @default(now()) @db.Timestamptz
-  // Added in 006
   code               String?
-  // Added in 005 (no FK declared in migrations)
   user_id            String
 
   category      Category?      @relation(fields: [category_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -242,9 +231,7 @@ model Receipt {
   linked_manifest_id String?       @db.Uuid
   processed_at       DateTime?     @db.Timestamptz
   created_at         DateTime      @default(now()) @db.Timestamptz
-  // Added in 007
   nfce               String?
-  // Added in 005 (no FK declared in migrations)
   user_id            String?
 
   merchant     Merchant      @relation(fields: [merchant_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -257,7 +244,6 @@ model ReceiptItem {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   receipt_id      String   @db.Uuid
   item_id         String?  @db.Uuid
-  // item_name was dropped in 002
   qty             String?
   unit_price      Decimal?
   total           Decimal?
@@ -279,7 +265,6 @@ model Manifest {
   created_by    String?
   created_at    DateTime       @default(now()) @db.Timestamptz
   updated_at    DateTime       @default(now()) @db.Timestamptz
-  // Added in 005 (no FK declared in migrations)
   user_id       String
 
   createdBy User?          @relation("manifest_created_by", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -288,8 +273,6 @@ model Manifest {
   @@map("manifests")
 }
 
-// Catalog of reusable items (the pool the add-items picker lists from).
-// Unrelated to the receipts-driven `items` table.
 model ManifestItem {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name       String
@@ -303,7 +286,6 @@ model ManifestItem {
   @@map("manifest_items")
 }
 
-// Per-merchant ordered list of aisles (categories). Free text, no FK to categories.
 model MerchantAisle {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   merchant_id String   @db.Uuid
@@ -319,7 +301,6 @@ model MerchantAisle {
   @@map("merchant_aisles")
 }
 
-// Per-merchant category override for a catalog item.
 model MerchantItemRule {
   id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   merchant_id      String   @db.Uuid
@@ -338,7 +319,6 @@ model MerchantItemRule {
 }
 
 model ManifestCrew {
-  // id added in 009 (UUID, NOT NULL, no default in DB).
   id          String  @id @db.Uuid
   manifest_id String  @db.Uuid
   user_id     String

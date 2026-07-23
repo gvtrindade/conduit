@@ -1,4 +1,4 @@
-const authRoutes = ['/login', '/signup', '/forgot-password', '/reset-password'];
+const authRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/set-callsign'];
 
 export function isAuthRoute(pathname: string): boolean {
   return authRoutes.includes(pathname);
@@ -14,6 +14,7 @@ export function getPageName(pathname: string): string {
   if (pathname === '/signup') return 'REGISTRATION';
   if (pathname === '/forgot-password') return 'RECOVERY';
   if (pathname === '/reset-password') return 'KEY_RESET';
+  if (pathname === '/set-callsign') return 'CALLSIGN';
   if (pathname === '/logs') return 'RECEIPTS';
   if (pathname.startsWith('/receipts/')) return 'RECEIPT_VIEWER';
   if (pathname.startsWith('/items/')) return 'ITEM_DETAIL';
