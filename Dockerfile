@@ -24,8 +24,9 @@ ENV NEXT_PUBLIC_PROJECT_URL=$NEXT_PUBLIC_PROJECT_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+RUN bun run prebuild
 RUN bun run build
-RUN powersync-web copy-assets -o public
+RUN bun run postinstall
 
 # Stage 3: Run Next.js application
 FROM oven/bun:1 AS runner 

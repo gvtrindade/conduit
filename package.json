@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "bun test",
     "generate-icons": "bun run scripts/generate-icons.ts",
-    "postinstall": "prisma generate && powersync-web copy-assets -o public",
+    "postinstall": "powersync-web copy-assets -o public",
     "prebuild": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
