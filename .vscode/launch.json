@@ -2,26 +2,35 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "type": "chrome",
+            "name": "Next.js: debug server-side",
+            "type": "node-terminal",
             "request": "launch",
-            "name": "Next.js: Chrome",
-            "url": "http://localhost:3000",
-            "webRoot": "${workspaceFolder}",
-            "sourceMaps": true
+            "command": "bun run dev -- --inspect"
         },
         {
-            "type": "node",
-            "request": "attach",
-            "name": "Next.js: Node",
-            "port": 9229,
-            "restart": true,
-            "skipFiles": ["<node_internals>/**"]
+            "name": "Next.js: debug client-side",
+            "type": "chrome",
+            "request": "launch",
+            "url": "http://localhost:3000"
+        },
+        {
+            "name": "Next.js: debug full stack",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "bun run dev -- --inspect",
+            "serverReadyAction": {
+                "action": "debugWithChrome",
+                "killOnServerStop": true,
+                "pattern": "- Local:.+(https?://.+)",
+                "uriFormat": "%s",
+                "webRoot": "${workspaceFolder}"
+            }
         }
     ],
     "compounds": [
         {
             "name": "Next.js: Full Stack",
-            "configurations": ["Next.js: Chrome", "Next.js: Node"]
+            "configurations": ["Next.js: debug server-side", "Next.js: debug client-side"]
         }
     ]
 }

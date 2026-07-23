@@ -4,7 +4,7 @@ FROM oven/bun:1 AS deps
 WORKDIR /app
 
 COPY package.json bun.lock* ./
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install --no-save --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install --no-save --frozen-lockfile --ignore-scripts
 
 # Stage 2: Build Next.js application in standalone mode
 FROM oven/bun:1 AS builder
@@ -25,7 +25,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 RUN bun run build
-RUN bun run postinstall
+RUN powersync-web copy-assets -o public
 
 # Stage 3: Run Next.js application
 FROM oven/bun:1 AS runner 
