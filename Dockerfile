@@ -27,6 +27,7 @@ COPY . .
 RUN bun run prebuild
 RUN bun run build
 RUN bun run postinstall
+RUN bun run prisma:migrate:deploy
 
 # Stage 3: Run Next.js application
 FROM oven/bun:1 AS runner 
