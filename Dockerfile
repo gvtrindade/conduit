@@ -27,10 +27,9 @@ COPY . .
 RUN bun run prebuild
 RUN bun run build
 RUN bun run postinstall
-RUN bun run prisma:migrate:deploy
 
 # Stage 3: Run Next.js application
-FROM oven/bun:1 AS runner 
+FROM oven/bun:1 AS runner
 
 WORKDIR /app
 
@@ -44,7 +43,23 @@ RUN chown bun:bun .next
 COPY --from=builder --chown=bun:bun /app/.next/standalone ./
 COPY --from=builder --chown=bun:bun /app/.next/static ./.next/static
 
+# Prisma CLI + engines are needed at runtime to apply migrations before
+# serving traffic. `prisma migrate deploy` loads prisma.config.ts + the schema
+# + the migration engine (a native binary under @prisma/engines).
+COPY --from=builder --chown=bun:bun /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder --chown=bun:bun /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder --chown=bun:bun /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
+
+# Prisma config + schema + migrations (needed by `prisma migrate deploy`).
+COPY --from=builder --chown=bun:bun /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=bun:bun /app/prisma/schema.prisma ./prisma/schema.prisma
+COPY --from=builder --chown=bun:bun /app/prisma/migrations ./prisma/migrations
+
+# Entrypoint applies migrations, then starts the server.
+COPY --chown=bun:bun docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
+
 USER bun
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["./docker-entrypoint.sh"]
